@@ -36,7 +36,7 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
   material.blendDst = THREE.OneMinusSrcAlphaFactor
   material.side = THREE.DoubleSide
 
-  const viewportUniform = uniform(new THREE.Vector2(window.innerWidth, window.innerHeight), 'vec2')
+  const viewportUniform = uniform(new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio), 'vec2')
   const texWidthUniform = uniform(data.width, 'int')
 
   // Store reference for updating viewport
@@ -88,7 +88,15 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const wy = qw.mul(qy)
     const wz = qw.mul(qz)
 
-    // Column-major mat3
+    // Column-major mat3 — each argument is a column vector.
+    // Standard rotation matrix from quaternion (row-major form):
+    //   Row 0: (1-2(y²+z²),  2(xy-wz),    2(xz+wy))
+    //   Row 1: (2(xy+wz),    1-2(x²+z²),  2(yz-wx))
+    //   Row 2: (2(xz-wy),    2(yz+wx),    1-2(x²+y²))
+    // In column-major, mat3(col0, col1, col2) where colN is column N of R:
+    //   col0 = (R[0][0], R[1][0], R[2][0]) = (1-2(y²+z²), 2(xy+wz), 2(xz-wy))
+    //   col1 = (R[0][1], R[1][1], R[2][1]) = (2(xy-wz),   1-2(x²+z²), 2(yz+wx))
+    //   col2 = (R[0][2], R[1][2], R[2][2]) = (2(xz+wy),   2(yz-wx),   1-2(x²+y²))
     const rotMat = mat3(
       vec3(ONE.sub(y2.add(z2).mul(2)), xy.add(wz).mul(2), xz.sub(wy).mul(2)),
       vec3(xy.sub(wz).mul(2), ONE.sub(x2.add(z2).mul(2)), yz.add(wx).mul(2)),
@@ -125,8 +133,11 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const fx = n((cameraProjectionMatrix as any).element(0).x).mul(viewportUniform.x).mul(0.5)
     const fy = n((cameraProjectionMatrix as any).element(1).y).mul(viewportUniform.y).mul(0.5)
 
-    // Jacobian of perspective projection
-    const tz = viewPos.z
+    // Jacobian of the perspective projection, scaled by focal lengths.
+    // Three.js camera looks down -Z, so viewPos.z < 0 for visible splats.
+    // We negate to get positive depth tz > 0, which keeps Jacobian diagonal positive
+    // and makes the covariance computation numerically stable.
+    const tz = viewPosZ.negate()  // positive depth (abs(viewPos.z))
     const tz2 = tz.mul(tz)
     const J = mat3(
       vec3(fx.div(tz), ZERO, ZERO),
@@ -182,13 +193,16 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const v1 = select(bNearZero, vec2(1.0, 0.0), normalizedV1)
     const v2 = vec2(v1.y.negate(), v1.x)
 
-    // Radii (3σ) with max pixel clamp — no single splat should exceed 2048px
-    const maxPixelRadius = float(2048.0)
+    // Radii (3σ): sqrt(eigenvalue) * 3 gives the 3-sigma radius in pixels.
+    // Cap at a fraction of the viewport to prevent huge edge-on splats from
+    // creating massive transparent sheets across the screen.
+    const maxPixelRadius = min(viewportUniform.x, viewportUniform.y).mul(0.5)
     const r1 = min(sqrt(max(lambda1, float(0.0001))).mul(3.0), maxPixelRadius)
     const r2 = min(sqrt(max(lambda2, float(0.0001))).mul(3.0), maxPixelRadius)
 
     // 8. Position the quad vertex
     const quadPos = positionGeometry.xy
+    // offset is in pixel space — this is what we pass to the fragment shader
     const offset = v1.mul(quadPos.x).mul(r1).add(v2.mul(quadPos.y).mul(r2))
 
     // Project splat center to clip space
@@ -249,14 +263,23 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
       color = textureLoad(data.colorTex, texCoord).rgb
     }
 
-    // 11. Pass varyings to fragment
+    // 11. Compute conic (inverse 2x2 covariance) for fragment Gaussian evaluation
+    // conic = (c/det, -b/det, a/det) → used as: conic.x*dx² + 2*conic.y*dx*dy + conic.z*dy²
+    const invDet = float(1.0).div(max(det, float(0.000001)))
+    const conicX = c.mul(invDet)
+    const conicY = n(b).negate().mul(invDet)
+    const conicZ = a.mul(invDet)
+
+    // 12. Pass varyings to fragment
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
-    const vQuadPos = varyingProperty('vec2', 'vQuadPos')
+    const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')  // pixel-space offset
+    const vConic = varyingProperty('vec3', 'vConic')               // (c/det, -b/det, a/det)
 
     vColor.assign(color)
     vOpacity.assign(opacity)
-    vQuadPos.assign(quadPos)
+    vPixelOffset.assign(offset)   // pixel-space quad offset
+    vConic.assign(vec3(conicX, conicY, conicZ))
 
     // NaN guard: if any component is NaN (NaN != NaN), degenerate the splat
     const hasNaN = finalClip.x.notEqual(finalClip.x)
@@ -269,21 +292,30 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
   })()
 
   // --- Fragment Shader ---
-  // The quad geometry already encodes the ellipse shape via eigenvector-scaled
-  // vertex positions in the vertex shader. The fragment just needs a simple
-  // radial Gaussian falloff: quad spans ±1 which maps to ±3σ.
+  // Evaluate the 2D Gaussian using the conic (inverse covariance matrix).
+  // The pixel-space offset from the splat center is passed as vPixelOffset.
+  // power = -0.5 * (conic.x * dx² + 2 * conic.y * dx * dy + conic.z * dy²)
   material.colorNode = Fn(() => {
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
-    const vQuadPos = varyingProperty('vec2', 'vQuadPos')
+    const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')
+    const vConic = varyingProperty('vec3', 'vConic')
 
-    // Scale quad coords to 3σ range: at edge (±1), this gives ±3
-    const dx = vQuadPos.x.mul(3.0)
-    const dy = vQuadPos.y.mul(3.0)
+    const dx = vPixelOffset.x
+    const dy = vPixelOffset.y
 
-    // Radial Gaussian: exp(-0.5 * (dx² + dy²))
-    // At center: exp(0) = 1.0, at edge: exp(-0.5 * 9) ≈ 0.011
-    const power = float(-0.5).mul(dx.mul(dx).add(dy.mul(dy)))
+    // Conic Gaussian evaluation (proper elliptical shape)
+    const power = float(-0.5).mul(
+      vConic.x.mul(dx.mul(dx))
+        .add(float(2.0).mul(vConic.y).mul(dx).mul(dy))
+        .add(vConic.z.mul(dy.mul(dy)))
+    )
+
+    // Discard fragments outside the 3σ ellipse (power < -4.5 → exp < 0.011)
+    If(power.lessThan(float(-4.5)), () => {
+      Discard()
+    })
+
     const alpha = clamp(vOpacity.mul(exp(power)), 0.0, 0.99)
 
     // Discard near-transparent fragments

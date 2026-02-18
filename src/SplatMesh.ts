@@ -200,10 +200,20 @@ export class SplatMesh extends THREE.Object3D {
   update(camera: THREE.Camera): void {
     if (!this.mesh) return
 
-    // Update viewport uniform if window resized
+    // Update viewport uniform with device pixel dimensions (accounts for HiDPI).
+    // Use domElement.width/height which are the actual canvas pixel dimensions
+    // (already multiplied by devicePixelRatio via renderer.setPixelRatio).
     const material = this.mesh.material as any
     if (material._viewportUniform) {
-      material._viewportUniform.value.set(window.innerWidth, window.innerHeight)
+      if (this.renderer) {
+        material._viewportUniform.value.set(
+          this.renderer.domElement.width,
+          this.renderer.domElement.height
+        )
+      } else {
+        const dpr = window.devicePixelRatio || 1
+        material._viewportUniform.value.set(window.innerWidth * dpr, window.innerHeight * dpr)
+      }
     }
 
     // Throttle sort to max ~20/sec — avoids GPU/CPU thrashing during fast orbits
