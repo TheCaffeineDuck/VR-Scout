@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu'
 import type { Node } from 'three/webgpu'
 import {
   Fn, uniform, textureLoad, attribute,
-  instanceIndex, positionGeometry,
+  positionGeometry,
   vec2, vec3, vec4, float, int, ivec2,
   mat3, max, min, clamp, sqrt, exp, abs as absNode,
   cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix,
@@ -241,16 +241,10 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
     const vQuadPos = varyingProperty('vec2', 'vQuadPos')
-    const vConic = varyingProperty('vec3', 'vConic')
 
     vColor.assign(color)
     vOpacity.assign(opacity)
     vQuadPos.assign(quadPos)
-
-    // Conic (inverse of 2x2 covariance) — clamp determinant to avoid blowup
-    const safeDet = max(det, float(0.0001))
-    const invDet = ONE.div(safeDet)
-    vConic.assign(vec3(c.mul(invDet), n(b).negate().mul(invDet), a.mul(invDet)))
 
     // NaN guard: if any component is NaN (NaN != NaN), degenerate the splat
     const hasNaN = finalClip.x.notEqual(finalClip.x)
@@ -263,22 +257,21 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
   })()
 
   // --- Fragment Shader ---
+  // The quad geometry already encodes the ellipse shape via eigenvector-scaled
+  // vertex positions in the vertex shader. The fragment just needs a simple
+  // radial Gaussian falloff: quad spans ±1 which maps to ±3σ.
   material.colorNode = Fn(() => {
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
     const vQuadPos = varyingProperty('vec2', 'vQuadPos')
-    const vConic = varyingProperty('vec3', 'vConic')
 
-    const dx = vQuadPos.x
-    const dy = vQuadPos.y
+    // Scale quad coords to 3σ range: at edge (±1), this gives ±3
+    const dx = vQuadPos.x.mul(3.0)
+    const dy = vQuadPos.y.mul(3.0)
 
-    // Gaussian evaluation
-    const power = float(-0.5).mul(
-      vConic.x.mul(dx.mul(dx))
-        .add(vConic.y.mul(dx).mul(dy).mul(2.0))
-        .add(vConic.z.mul(dy.mul(dy)))
-    )
-
+    // Radial Gaussian: exp(-0.5 * (dx² + dy²))
+    // At center: exp(0) = 1.0, at edge: exp(-0.5 * 9) ≈ 0.011
+    const power = float(-0.5).mul(dx.mul(dx).add(dy.mul(dy)))
     const alpha = clamp(vOpacity.mul(exp(power)), 0.0, 0.99)
 
     // Discard near-transparent fragments
