@@ -151,7 +151,7 @@ export class GpuSort {
   // ---- Distance computation ----
 
   private _buildDistanceCompute(positionTex: THREE.DataTexture, texWidth: number): void {
-    const camPos = uniform(this.camPosUniform)
+    const camPos = uniform(this.camPosUniform, 'vec3')
     const texW = int(texWidth)
     const splatCount = uint(this.count)
     const distBuf = this.distanceBuffer

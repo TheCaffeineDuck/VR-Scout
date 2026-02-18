@@ -36,8 +36,8 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
   material.blendDst = THREE.OneMinusSrcAlphaFactor
   material.side = THREE.DoubleSide
 
-  const viewportUniform = uniform(new THREE.Vector2(window.innerWidth, window.innerHeight))
-  const texWidthUniform = uniform(int(data.width))
+  const viewportUniform = uniform(new THREE.Vector2(window.innerWidth, window.innerHeight), 'vec2')
+  const texWidthUniform = uniform(data.width, 'int')
 
   // Store reference for updating viewport
   ;(material as any)._viewportUniform = viewportUniform
