@@ -421,10 +421,10 @@ export class GpuSort {
 
   /**
    * Execute the full sort for this frame.
+   * @param camPos Camera position in **local** (model) space — caller must transform world→local.
    * Returns false if the sort was skipped (camera didn't move enough).
    */
-  sort(camera: THREE.Camera, renderer: THREE.WebGPURenderer): boolean {
-    const camPos = camera.position
+  sort(camPos: THREE.Vector3, renderer: THREE.WebGPURenderer): boolean {
     const dx = camPos.x - this.lastCamPos.x
     const dy = camPos.y - this.lastCamPos.y
     const dz = camPos.z - this.lastCamPos.z
@@ -497,10 +497,11 @@ export class GpuSort {
 
   /**
    * Force a sort regardless of movement threshold.
+   * @param camPos Camera position in **local** (model) space.
    */
-  sortForce(camera: THREE.Camera, renderer: THREE.WebGPURenderer): void {
+  sortForce(camPos: THREE.Vector3, renderer: THREE.WebGPURenderer): void {
     this.lastCamPos.set(Infinity, Infinity, Infinity)
-    this.sort(camera, renderer)
+    this.sort(camPos, renderer)
   }
 
   dispose(): void {

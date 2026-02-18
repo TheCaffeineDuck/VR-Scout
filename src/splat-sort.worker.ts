@@ -7,9 +7,14 @@ const workerSelf = self as any
 let storedPositions: Float32Array | null = null
 let storedCount = 0
 
+// Pre-allocated sort buffers — created once in init, reused every sort
+let distancesBuffer: Float32Array | null = null
+let indicesBuffer: Uint32Array | null = null
+let tempIndicesBuffer: Uint32Array | null = null
+
 // 16-bit radix sort (two passes: low 16 bits, high 16 bits)
 // Sorts indices so that distances are in descending order (back-to-front for alpha blending)
-function radixSort16(indices: Uint32Array, distances: Float32Array, count: number): void {
+function radixSort16(indices: Uint32Array, distances: Float32Array, count: number, tempIndices: Uint32Array): void {
   // Since all distances are squared (non-negative), the float bit pattern already
   // maintains the same order as the float value. We can sort by reinterpreted bits.
   // Reinterpret float32 bits as uint32 for integer comparison.
@@ -17,8 +22,6 @@ function radixSort16(indices: Uint32Array, distances: Float32Array, count: numbe
 
   const RADIX = 65536 // 2^16
   const MASK = 0xFFFF
-
-  const tempIndices = new Uint32Array(count)
 
   // Two passes: low 16 bits, then high 16 bits
   // After sorting ascending by distBits, reverse for back-to-front (farthest first)
@@ -65,18 +68,22 @@ workerSelf.onmessage = (e: MessageEvent) => {
   if (msg.type === 'init') {
     storedPositions = msg.positions as Float32Array
     storedCount = msg.count as number
+
+    // Pre-allocate sort buffers once — avoids ~12MB of GC pressure per sort
+    distancesBuffer = new Float32Array(storedCount)
+    indicesBuffer = new Uint32Array(storedCount)
+    tempIndicesBuffer = new Uint32Array(storedCount)
     return
   }
 
   if (msg.type === 'sort') {
-    if (!storedPositions || storedCount === 0) return
+    if (!storedPositions || storedCount === 0 || !distancesBuffer || !indicesBuffer || !tempIndicesBuffer) return
 
     const { camX, camY, camZ } = msg
     const count = storedCount
     const positions = storedPositions
-
-    const distances = new Float32Array(count)
-    const indices = new Uint32Array(count)
+    const distances = distancesBuffer
+    const indices = indicesBuffer
 
     for (let i = 0; i < count; i++) {
       const dx = positions[i * 3]     - camX
@@ -86,9 +93,14 @@ workerSelf.onmessage = (e: MessageEvent) => {
       indices[i] = i
     }
 
-    radixSort16(indices, distances, count)
+    radixSort16(indices, distances, count, tempIndicesBuffer)
+
+    // Copy sorted indices into a new buffer for zero-copy transfer
+    // (we can't transfer pre-allocated indicesBuffer — it would detach and become unusable)
+    const result = new Uint32Array(count)
+    result.set(indices)
 
     // Transfer the buffer back zero-copy
-    workerSelf.postMessage({ indices }, [indices.buffer])
+    workerSelf.postMessage({ indices: result }, [result.buffer])
   }
 }

@@ -17,6 +17,10 @@ export class SplatMesh extends THREE.Object3D {
   private renderer: THREE.WebGPURenderer | null = null
   private useGpuSort: boolean = false
 
+  // Sort throttling — cap at ~20 sorts/sec to avoid GPU/CPU thrashing
+  private lastSortTime: number = 0
+  private sortIntervalMs: number = 50
+
   /** Optional callback for LOD load progress (0-100) */
   onLoadProgress: ((percent: number) => void) | null = null
 
@@ -197,24 +201,32 @@ export class SplatMesh extends THREE.Object3D {
       material._viewportUniform.value.set(window.innerWidth, window.innerHeight)
     }
 
+    // Throttle sort to max ~20/sec — avoids GPU/CPU thrashing during fast orbits
+    const now = performance.now()
+    if (now - this.lastSortTime < this.sortIntervalMs) return
+    this.lastSortTime = now
+
+    // Transform camera position from world space → local (model) space
+    // so sort distances match the local-space splat positions stored in textures/arrays
+    const localCam = this._getLocalCameraPos(camera)
+
     // Trigger sort
     if (this.gpuSort && this.renderer) {
       // GPU sort — all work done on GPU, no CPU upload needed
-      this.gpuSort.sort(camera, this.renderer)
+      this.gpuSort.sort(localCam, this.renderer)
     } else if (this.sorter) {
       // CPU sort fallback
-      const pos = camera.position
-      this.sorter.sort(pos.x, pos.y, pos.z)
+      this.sorter.sort(localCam.x, localCam.y, localCam.z)
     }
   }
 
   /** Call once after the scene is set up to trigger the initial sort. */
   triggerInitialSort(camera: THREE.Camera): void {
+    const localCam = this._getLocalCameraPos(camera)
     if (this.gpuSort && this.renderer) {
-      this.gpuSort.sortForce(camera, this.renderer)
+      this.gpuSort.sortForce(localCam, this.renderer)
     } else if (this.sorter) {
-      const pos = camera.position
-      this.sorter.sortForce(pos.x, pos.y, pos.z)
+      this.sorter.sortForce(localCam.x, localCam.y, localCam.z)
     }
   }
 
@@ -226,6 +238,18 @@ export class SplatMesh extends THREE.Object3D {
     this.data?.dispose()
     this.sorter?.dispose()
     this.gpuSort?.dispose()
+  }
+
+  /**
+   * Transform camera position from world space to the local (model) space of
+   * this SplatMesh. Required because splat positions stored in textures/arrays
+   * are in local space, while camera.position is in world space.
+   *
+   * Since SplatMesh only applies a translation (from centerOnBounds), the
+   * inverse is simply subtracting that translation: localCam = worldCam - meshPos.
+   */
+  private _getLocalCameraPos(camera: THREE.Camera): THREE.Vector3 {
+    return camera.position.clone().sub(this.position)
   }
 
   private _isNativeWebGPU(renderer: THREE.WebGPURenderer): boolean {
