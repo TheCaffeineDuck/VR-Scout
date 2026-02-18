@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu'
 import type { Node } from 'three/webgpu'
 import {
-  Fn, uniform, textureLoad, attribute,
+  Fn, uniform, textureLoad, attribute, instanceIndex,
   positionGeometry,
   vec2, vec3, vec4, float, int, ivec2,
   mat3, max, min, clamp, sqrt, exp, abs as absNode,
@@ -19,7 +19,13 @@ const n = (v: any) => v as Node
 const ZERO = float(0)
 const ONE = float(1)
 
-export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
+export interface SplatMaterialOptions {
+  /** GPU sort index buffer — when provided, the vertex shader reads sorted indices from this
+   *  storage buffer instead of the sortOrder instance attribute. */
+  gpuIndexBuffer?: any | null
+}
+
+export function createSplatMaterial(data: SplatData, options?: SplatMaterialOptions): THREE.NodeMaterial {
   const material = new THREE.NodeMaterial()
   material.transparent = true
   material.depthWrite = false
@@ -36,13 +42,21 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
   // Store reference for updating viewport
   ;(material as any)._viewportUniform = viewportUniform
 
+  const gpuIndexBuffer = options?.gpuIndexBuffer ?? null
+
   // --- Vertex Shader ---
   material.vertexNode = Fn(() => {
-    // 1. Resolve splat index via sortOrder indirection
-    //    sortOrder[instanceIndex] → actual splat index (as float, then converted to int)
-    //    Add 0.5 + floor for precision at high indices (270K+) where float→int can drift
-    const sortOrderFloat = attribute('sortOrder') // float attribute
-    const splatIndex = sortOrderFloat.add(0.5).floor().toInt()
+    // 1. Resolve splat index via sort indirection
+    let splatIndex: any
+    if (gpuIndexBuffer) {
+      // GPU sort path: read sorted index directly from storage buffer
+      splatIndex = gpuIndexBuffer.element(instanceIndex).toInt()
+    } else {
+      // CPU sort path: sortOrder[instanceIndex] → actual splat index (as float, then int)
+      // Add 0.5 + floor for precision at high indices (270K+) where float→int can drift
+      const sortOrderFloat = attribute('sortOrder')
+      splatIndex = sortOrderFloat.add(0.5).floor().toInt()
+    }
 
     // 2. Texture coordinate from splat index
     const u = splatIndex.mod(texWidthUniform)

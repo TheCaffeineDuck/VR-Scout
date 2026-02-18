@@ -21,6 +21,9 @@ async function init() {
   const forceWebGL = params.has('webgl')
   // Use ?file=filename.ply to load a custom file from /splats/
   const customFile = params.get('file')
+  // LOD params: ?preview=file1.splat&high=file2.ply
+  const previewUrl = params.get('preview')
+  const highUrl = params.get('high')
 
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
   renderer.setSize(window.innerWidth, window.innerHeight)
@@ -40,12 +43,27 @@ async function init() {
   controls.enableDamping = true
 
   const splat = new SplatMesh()
+  splat.setRenderer(renderer)
+
+  // LOD progress callback
+  splat.onLoadProgress = (pct: number) => {
+    dbg(`[main] LOD loading: ${pct}%`)
+  }
 
   // Try to load a real splat file, fall back to synthetic
   try {
-    const fileToLoad = customFile ? `/splats/${customFile}` : '/splats/room.splat'
-    await splat.load(fileToLoad)
-    dbg(`[main] Loaded ${fileToLoad}`)
+    if (previewUrl && highUrl) {
+      // Progressive LOD loading
+      await splat.loadProgressive({
+        preview: `/splats/${previewUrl}`,
+        high: `/splats/${highUrl}`,
+      })
+      dbg(`[main] LOD: preview=${previewUrl}, high=${highUrl}`)
+    } else {
+      const fileToLoad = customFile ? `/splats/${customFile}` : '/splats/room.splat'
+      await splat.load(fileToLoad)
+      dbg(`[main] Loaded ${fileToLoad}`)
+    }
   } catch (e: any) {
     dbg('[main] No splat file found, using synthetic: ' + (e?.message || e))
     const syntheticBuffer = generateTestSplatBuffer(1000)
