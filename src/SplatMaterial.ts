@@ -71,6 +71,11 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const scaleVec = textureLoad(data.scaleTex, texCoord).xyz
     const rot = textureLoad(data.rotationTex, texCoord) // RGBA = (w, x, y, z)
 
+    // Scale-based culling: splats with very large 3D scales are outliers from training.
+    // They create huge blobs that obscure the actual scene. Cull if any scale axis > 2.0.
+    const maxScale = max(max(scaleVec.x, scaleVec.y), scaleVec.z)
+    const tooLargeScale = maxScale.greaterThan(float(2.0))
+
     // 4. Quaternion → Rotation Matrix (3x3)
     // Texture stores (w, x, y, z) in RGBA channels
     const qw = rot.x
@@ -194,11 +199,24 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const v2 = vec2(v1.y.negate(), v1.x)
 
     // Radii (3σ): sqrt(eigenvalue) * 3 gives the 3-sigma radius in pixels.
-    // Cap at a fraction of the viewport to prevent huge edge-on splats from
-    // creating massive transparent sheets across the screen.
-    const maxPixelRadius = min(viewportUniform.x, viewportUniform.y).mul(0.5)
-    const r1 = min(sqrt(max(lambda1, float(0.0001))).mul(3.0), maxPixelRadius)
-    const r2 = min(sqrt(max(lambda2, float(0.0001))).mul(3.0), maxPixelRadius)
+    const rawR1 = sqrt(max(lambda1, float(0.0001))).mul(3.0)
+    const rawR2 = sqrt(max(lambda2, float(0.0001))).mul(3.0)
+
+    // Cap each radius at 800px max to prevent massive splats
+    const maxPixelRadius = float(800.0)
+    const r1 = min(rawR1, maxPixelRadius)
+    const r2 = min(rawR2, maxPixelRadius)
+
+    // Aspect ratio: compute for culling check
+    const maxR = max(rawR1, rawR2)
+    const minR = max(min(rawR1, rawR2), float(0.01))
+    const aspectRatio = maxR.div(minR)
+    // Hard cull at 20:1 — these are extremely elongated edge-on splats
+    const tooElongated = aspectRatio.greaterThan(float(20.0))
+
+    // Smooth opacity reduction for moderately elongated splats (5:1 to 20:1).
+    // elongFade = 1.0 when aspect <= 5, fades to 0.0 at aspect = 20
+    const elongFade = clamp(float(20.0).sub(aspectRatio).div(15.0), 0.0, 1.0)
 
     // 8. Position the quad vertex
     const quadPos = positionGeometry.xy
@@ -215,7 +233,12 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     // 9. Frustum culling
     // Three.js right-handed: camera looks down -Z, so splats in front have viewPosZ < 0
     const behindCamera = viewPosZ.greaterThan(ZERO)
-    const tooClose = viewPosZ.greaterThan(float(-0.1))
+    // Near-plane culling: splats closer than 0.2m are inside the viewer's head
+    const tooClose = viewPosZ.greaterThan(float(-0.2))
+
+    // Opacity fade for near splats: smoothly fade from 0.2m to 2.0m depth.
+    // tz is positive depth (negated viewPosZ). Fade = clamp((tz - 0.2) / 1.8, 0, 1)
+    const nearFade = clamp(tz.sub(0.2).div(1.8), 0.0, 1.0)
 
     // Off-screen check using NDC (before quad offset, so use the center clip pos)
     const centerClip = cameraProjectionMatrix.mul(vec4(viewPos, 1.0))
@@ -225,7 +248,7 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const offScreenX = absNode(ndcX).greaterThan(margin)
     const offScreenY = absNode(ndcY).greaterThan(margin)
 
-    const culled = behindCamera.or(tooClose).or(offScreenX).or(offScreenY).or(tooSmall)
+    const culled = behindCamera.or(tooClose).or(offScreenX).or(offScreenY).or(tooSmall).or(tooElongated).or(tooLargeScale)
 
     const finalClip = select(culled, vec4(0, 0, 0, 0), clipPos)
 
@@ -277,7 +300,7 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const vConic = varyingProperty('vec3', 'vConic')               // (c/det, -b/det, a/det)
 
     vColor.assign(color)
-    vOpacity.assign(opacity)
+    vOpacity.assign(opacity.mul(nearFade).mul(elongFade))  // fade for near + elongated splats
     vPixelOffset.assign(offset)   // pixel-space quad offset
     vConic.assign(vec3(conicX, conicY, conicZ))
 

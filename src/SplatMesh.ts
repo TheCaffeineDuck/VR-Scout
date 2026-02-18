@@ -260,11 +260,13 @@ export class SplatMesh extends THREE.Object3D {
    * this SplatMesh. Required because splat positions stored in textures/arrays
    * are in local space, while camera.position is in world space.
    *
-   * Since SplatMesh only applies a translation (from centerOnBounds), the
-   * inverse is simply subtracting that translation: localCam = worldCam - meshPos.
+   * Uses the inverse of the mesh's world matrix to handle both translation
+   * and any rotation (e.g., orientation fix for Z-up scenes).
    */
   private _getLocalCameraPos(camera: THREE.Camera): THREE.Vector3 {
-    return camera.position.clone().sub(this.position)
+    this.updateWorldMatrix(true, false)
+    const invWorld = this.matrixWorld.clone().invert()
+    return camera.position.clone().applyMatrix4(invWorld)
   }
 
   private _isNativeWebGPU(renderer: THREE.WebGPURenderer): boolean {
@@ -300,22 +302,158 @@ export class SplatMesh extends THREE.Object3D {
     const meanY = sumY / count
     const meanZ = sumZ / count
 
+    const extX = maxX - minX
+    const extY = maxY - minY
+    const extZ = maxZ - minZ
+    const diagonal = Math.sqrt(extX * extX + extY * extY + extZ * extZ)
+
+    console.log(`[SplatMesh] Bounds: (${minX.toFixed(2)}, ${minY.toFixed(2)}, ${minZ.toFixed(2)}) → (${maxX.toFixed(2)}, ${maxY.toFixed(2)}, ${maxZ.toFixed(2)})`)
+    console.log(`[SplatMesh] Extents: X=${extX.toFixed(2)}, Y=${extY.toFixed(2)}, Z=${extZ.toFixed(2)}, diag=${diagonal.toFixed(2)}`)
+    console.log(`[SplatMesh] Centroid: (${meanX.toFixed(2)}, ${meanY.toFixed(2)}, ${meanZ.toFixed(2)})`)
+
+    // Detect coordinate system orientation.
+    // Many COLMAP/3DGS captures use a coordinate system where the "up" axis
+    // has the smallest spread of positions (since scenes are wider than tall).
+    // If Y has the smallest spread, it's Y-up (Three.js native) — no rotation needed.
+    // If Z has the smallest spread, it's likely Z-up (COLMAP default) — rotate -90° around X.
+    // Heuristic: compute standard deviation along each axis to find the "thinnest" direction.
+    let varX = 0, varY = 0, varZ = 0
+    const sampleStep = Math.max(1, Math.floor(count / 10000)) // sample for speed
+    let sampleCount = 0
+    for (let i = 0; i < count; i += sampleStep) {
+      const dx = positions[i * 3] - meanX
+      const dy = positions[i * 3 + 1] - meanY
+      const dz = positions[i * 3 + 2] - meanZ
+      varX += dx * dx
+      varY += dy * dy
+      varZ += dz * dz
+      sampleCount++
+    }
+    varX /= sampleCount
+    varY /= sampleCount
+    varZ /= sampleCount
+
+    const sdX = Math.sqrt(varX)
+    const sdY = Math.sqrt(varY)
+    const sdZ = Math.sqrt(varZ)
+    console.log(`[SplatMesh] StdDev: X=${sdX.toFixed(3)}, Y=${sdY.toFixed(3)}, Z=${sdZ.toFixed(3)}`)
+
+    // Detect if the scene needs orientation correction.
+    // The "up" axis in the capture should have the smallest spread.
+    // For Three.js we want Y-up. If Y already has the smallest spread, no fix needed.
+    // If another axis has the smallest spread, that axis is "up" in the capture.
+    const minSD = Math.min(sdX, sdY, sdZ)
+    let needsOrientationFix = false
+    let needsYFlip = false
+
+    if (minSD === sdY) {
+      // Y-up — but check if Y is inverted (common in COLMAP/3DGS .splat files).
+      // In a properly oriented scene, the lower Y values should have more splats
+      // (ground/objects are denser than sky). Compare density in lower vs upper half.
+      let lowerCount = 0, upperCount = 0
+      for (let i = 0; i < count; i += sampleStep) {
+        if (positions[i * 3 + 1] < meanY) lowerCount++
+        else upperCount++
+      }
+      // If more splats are in the upper half (high Y), Y is likely inverted.
+      // Ground has more splats than sky, so ground should be at lower Y values.
+      // Use a significant margin (60%) to avoid false positives on symmetric scenes.
+      if (upperCount > lowerCount * 1.2) {
+        needsYFlip = true
+        console.log(`[SplatMesh] Orientation: Y-up but INVERTED (lower=${lowerCount}, upper=${upperCount}) — flipping Y`)
+      } else {
+        console.log(`[SplatMesh] Orientation: Y-up (native Three.js) — no rotation needed (lower=${lowerCount}, upper=${upperCount})`)
+      }
+    } else if (minSD === sdZ) {
+      // Z has smallest spread → Z is "up" in capture → need to rotate
+      console.log(`[SplatMesh] Orientation: Z-up detected — applying -90° X rotation`)
+      needsOrientationFix = true
+    } else {
+      // X has smallest spread — unusual, might be a sideways capture
+      console.log(`[SplatMesh] Orientation: X-up detected (unusual) — no auto-fix`)
+    }
+
     // Translate mesh so centroid is at world origin
     this.position.set(-meanX, -meanY, -meanZ)
 
-    // Camera spawn: at the centroid (world origin after translation).
-    // Use a robust floor estimate by taking the 5th percentile of Y values
-    // to avoid outlier splats far below the actual floor.
-    const yValues = new Float32Array(count)
-    for (let i = 0; i < count; i++) yValues[i] = positions[i * 3 + 1]
-    yValues.sort()
-    const floorY5pct = yValues[Math.floor(count * 0.05)] - meanY
-    this.cameraSpawn.set(0, floorY5pct + 1.6, 0)
-    this.cameraTarget.set(0, floorY5pct + 1.6, -0.1) // look forward along -Z
+    if (needsOrientationFix) {
+      // Apply rotation to the mesh to fix Z-up → Y-up
+      // Rx(-π/2): (x,y,z) → (x, z, -y)
+      // For centroid to land at origin: position = -rotatedCentroid = (-meanX, -meanZ, meanY)
+      this.rotation.set(-Math.PI / 2, 0, 0)
+      this.position.set(-meanX, -meanZ, meanY)
+    } else if (needsYFlip) {
+      // Flip Y axis by scaling Y by -1. This is a 180° rotation around X.
+      // Rx(π): (x,y,z) → (x, -y, -z)
+      // For centroid to land at origin: position = -rotated = (-meanX, meanY, meanZ)
+      this.rotation.set(Math.PI, 0, 0)
+      this.position.set(-meanX, meanY, meanZ)
+    }
 
-    console.log(`[SplatMesh] Bounds: (${minX.toFixed(2)}, ${minY.toFixed(2)}, ${minZ.toFixed(2)}) → (${maxX.toFixed(2)}, ${maxY.toFixed(2)}, ${maxZ.toFixed(2)})`)
-    console.log(`[SplatMesh] Centroid: (${meanX.toFixed(2)}, ${meanY.toFixed(2)}, ${meanZ.toFixed(2)})`)
-    console.log(`[SplatMesh] Floor (5th pct Y): ${(floorY5pct + meanY).toFixed(2)} → world Y=${floorY5pct.toFixed(2)}`)
+    // Determine scene type based on standard deviation (robust to outliers).
+    // Use the largest StdDev as a proxy for scene "radius".
+    // Small objects have maxSD < 2.0 (about 4m at 2σ), environments are larger.
+    const maxSD = Math.max(sdX, sdY, sdZ)
+    const isSmallObject = maxSD < 2.0
+
+    console.log(`[SplatMesh] Scene type: ${isSmallObject ? 'SMALL OBJECT' : 'ENVIRONMENT'} (maxSD=${maxSD.toFixed(2)})`)
+
+    if (isSmallObject) {
+      // Small object scan: position camera outside looking at center
+      // Camera at 2x diagonal distance, slightly above center, looking at origin
+      const camDist = diagonal * 1.5
+      this.cameraSpawn.set(0, diagonal * 0.3, camDist)
+      this.cameraTarget.set(0, 0, 0)
+      console.log(`[SplatMesh] Object mode: cam distance=${camDist.toFixed(2)}`)
+    } else {
+      // Room/environment: use floor detection + standing height
+      // Collect Y values in world space (after any rotation fix)
+      const worldYValues = new Float32Array(count)
+      if (needsOrientationFix) {
+        // After Rx(-π/2): local (x,y,z) → world (x, z, -y) + position
+        // world Y = z + position.y = z - meanZ (position.y = -meanZ)
+        for (let i = 0; i < count; i++) {
+          worldYValues[i] = positions[i * 3 + 2] - meanZ
+        }
+      } else if (needsYFlip) {
+        // After Rx(π): local (x,y,z) → world (x, -y, -z) + position
+        // world Y = -y + meanY = meanY - y
+        for (let i = 0; i < count; i++) {
+          worldYValues[i] = meanY - positions[i * 3 + 1]
+        }
+      } else {
+        for (let i = 0; i < count; i++) {
+          worldYValues[i] = positions[i * 3 + 1] - meanY
+        }
+      }
+      worldYValues.sort()
+
+      const floorY = worldYValues[Math.floor(count * 0.05)]
+      const ceilY = worldYValues[Math.floor(count * 0.95)]
+      const roomHeight = ceilY - floorY
+      // Place camera at floor + 1.6m, but cap at 60% of room height
+      const eyeHeight = Math.min(1.6, roomHeight * 0.6)
+      const camY = floorY + eyeHeight
+      this.cameraSpawn.set(0, camY, 0)
+      this.cameraTarget.set(0, camY, -0.1) // look forward along -Z
+
+      console.log(`[SplatMesh] Environment mode: floor=${floorY.toFixed(2)}, ceil=${ceilY.toFixed(2)}, height=${roomHeight.toFixed(2)}, eyeY=${camY.toFixed(2)}`)
+    }
+
+    // URL parameter overrides for manual testing
+    const params = new URLSearchParams(window.location.search)
+    const camX = params.get('camX')
+    const camY = params.get('camY')
+    const camZ = params.get('camZ')
+    if (camX !== null) this.cameraSpawn.x = parseFloat(camX)
+    if (camY !== null) this.cameraSpawn.y = parseFloat(camY)
+    if (camZ !== null) this.cameraSpawn.z = parseFloat(camZ)
+
+    const rotX = params.get('rotX')
+    if (rotX !== null) {
+      this.rotation.set(parseFloat(rotX) * Math.PI / 180, 0, 0)
+    }
+
     console.log(`[SplatMesh] Camera spawn (world): (${this.cameraSpawn.x.toFixed(2)}, ${this.cameraSpawn.y.toFixed(2)}, ${this.cameraSpawn.z.toFixed(2)})`)
   }
 }
