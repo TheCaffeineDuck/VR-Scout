@@ -43,7 +43,7 @@ async function init() {
 
   // Try to load a real splat file, fall back to synthetic
   try {
-    const fileToLoad = customFile ? `/splats/${customFile}` : '/splats/test.splat'
+    const fileToLoad = customFile ? `/splats/${customFile}` : '/splats/room.splat'
     await splat.load(fileToLoad)
     dbg(`[main] Loaded ${fileToLoad}`)
   } catch (e: any) {
