@@ -16,8 +16,12 @@ window.addEventListener('unhandledrejection', (e) => { dbg('UNHANDLED: ' + e.rea
 
 async function init() {
   dbg('[main] Starting...')
+  const params = new URLSearchParams(window.location.search)
   // Use ?webgl query param to force WebGL backend (useful when Chrome WebGPU hangs)
-  const forceWebGL = new URLSearchParams(window.location.search).has('webgl')
+  const forceWebGL = params.has('webgl')
+  // Use ?file=filename.ply to load a custom file from /splats/
+  const customFile = params.get('file')
+
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.setPixelRatio(window.devicePixelRatio)
@@ -37,17 +41,21 @@ async function init() {
 
   const splat = new SplatMesh()
 
-  // Try to load a real .splat file, fall back to synthetic
+  // Try to load a real splat file, fall back to synthetic
   try {
-    await splat.load('/splats/test.splat')
-    dbg('[main] Loaded test.splat')
+    const fileToLoad = customFile ? `/splats/${customFile}` : '/splats/test.splat'
+    await splat.load(fileToLoad)
+    dbg(`[main] Loaded ${fileToLoad}`)
   } catch (e: any) {
-    dbg('[main] No test.splat, using synthetic: ' + (e?.message || e))
+    dbg('[main] No splat file found, using synthetic: ' + (e?.message || e))
     const syntheticBuffer = generateTestSplatBuffer(1000)
     splat.loadFromBuffer(syntheticBuffer)
     dbg('[main] Synthetic data loaded')
   }
   scene.add(splat)
+
+  // Trigger an initial depth sort so the scene is correct on first render
+  splat.triggerInitialSort(camera)
 
   let frameCount = 0
   function animate() {

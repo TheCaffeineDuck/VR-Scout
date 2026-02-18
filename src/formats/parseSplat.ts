@@ -5,6 +5,9 @@ export interface ParsedSplatData {
   rotations: Float32Array
   colors: Float32Array
   opacities: Float32Array
+  /** SH degree-1 coefficients: 9 floats per splat [r0,r1,r2, g0,g1,g2, b0,b1,b2].
+   *  null if the format doesn't include SH data (e.g. .splat files). */
+  sh1: Float32Array | null
 }
 
 export function parseSplat(buffer: ArrayBuffer): ParsedSplatData {
@@ -71,5 +74,5 @@ export function parseSplat(buffer: ArrayBuffer): ParsedSplatData {
     console.log(`[parseSplat] Sample color[0]: (${colors[0].toFixed(3)}, ${colors[1].toFixed(3)}, ${colors[2].toFixed(3)}) opacity: ${opacities[0].toFixed(3)}`)
   }
 
-  return { count, positions, scales, rotations, colors, opacities }
+  return { count, positions, scales, rotations, colors, opacities, sh1: null }
 }

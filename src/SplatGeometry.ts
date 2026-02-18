@@ -18,6 +18,16 @@ export function createSplatGeometry(count: number): THREE.InstancedBufferGeometr
   // Instance count = number of splats
   geo.instanceCount = count
 
+  // sortOrder: maps instance slot → actual splat index
+  // Initialize as identity; updated each frame by the depth sorter
+  // Using Float32Array to avoid integer attribute issues in WebGL/TSL
+  const sortOrderArray = new Float32Array(count)
+  for (let i = 0; i < count; i++) sortOrderArray[i] = i
+
+  const sortOrderAttr = new THREE.InstancedBufferAttribute(sortOrderArray, 1)
+  sortOrderAttr.setUsage(THREE.DynamicDrawUsage) // updated frequently
+  geo.setAttribute('sortOrder', sortOrderAttr)
+
   // Set a large bounding sphere so frustum culling doesn't clip us
   // (we handle culling in the vertex shader)
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), Infinity)

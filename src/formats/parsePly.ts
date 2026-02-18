@@ -64,6 +64,9 @@ export function parsePly(buffer: ArrayBuffer): ParsedSplatData {
     stride += p.byteSize
   }
 
+  // Detect SH1: f_rest_0 through f_rest_8
+  const hasSH1Props = propMap.has('f_rest_0') && propMap.has('f_rest_8')
+
   // Data starts after "end_header\n"
   const dataStart = headerEnd + 1 // +1 for the newline after end_header
   const dataView = new DataView(buffer, dataStart)
@@ -73,6 +76,8 @@ export function parsePly(buffer: ArrayBuffer): ParsedSplatData {
   const rotations = new Float32Array(count * 4)
   const colors = new Float32Array(count * 3)
   const opacities = new Float32Array(count)
+  // SH1: 9 floats per splat [r0,r1,r2, g0,g1,g2, b0,b1,b2]
+  const sh1 = hasSH1Props ? new Float32Array(count * 9) : null
 
   function readFloat(byteOffset: number, propName: string): number {
     const prop = propMap.get(propName)
@@ -136,15 +141,30 @@ export function parsePly(buffer: ArrayBuffer): ParsedSplatData {
     } else {
       opacities[i] = 1.0
     }
+
+    // SH degree 1 coefficients (direct float values from training)
+    // f_rest_0..2 → red channel, f_rest_3..5 → green, f_rest_6..8 → blue
+    if (sh1 && hasSH1Props) {
+      const base = i * 9
+      sh1[base]     = readFloat(byteOffset, 'f_rest_0')
+      sh1[base + 1] = readFloat(byteOffset, 'f_rest_1')
+      sh1[base + 2] = readFloat(byteOffset, 'f_rest_2')
+      sh1[base + 3] = readFloat(byteOffset, 'f_rest_3')
+      sh1[base + 4] = readFloat(byteOffset, 'f_rest_4')
+      sh1[base + 5] = readFloat(byteOffset, 'f_rest_5')
+      sh1[base + 6] = readFloat(byteOffset, 'f_rest_6')
+      sh1[base + 7] = readFloat(byteOffset, 'f_rest_7')
+      sh1[base + 8] = readFloat(byteOffset, 'f_rest_8')
+    }
   }
 
-  console.log(`[parsePly] Parsed ${count} splats (${properties.length} properties, stride ${stride} bytes)`)
+  console.log(`[parsePly] Parsed ${count} splats (${properties.length} properties, stride ${stride} bytes, hasSH1=${hasSH1Props})`)
   if (count > 0) {
     console.log(`[parsePly] Sample pos[0]: (${positions[0].toFixed(3)}, ${positions[1].toFixed(3)}, ${positions[2].toFixed(3)})`)
     console.log(`[parsePly] Sample color[0]: (${colors[0].toFixed(3)}, ${colors[1].toFixed(3)}, ${colors[2].toFixed(3)}) opacity: ${opacities[0].toFixed(3)}`)
   }
 
-  return { count, positions, scales, rotations, colors, opacities }
+  return { count, positions, scales, rotations, colors, opacities, sh1 }
 }
 
 function findHeaderEnd(buffer: ArrayBuffer): number {

@@ -1,12 +1,14 @@
 import * as THREE from 'three/webgpu'
 import type { Node } from 'three/webgpu'
 import {
-  Fn, uniform, textureLoad,
+  Fn, uniform, textureLoad, attribute,
   instanceIndex, positionGeometry,
   vec2, vec3, vec4, float, int, ivec2,
-  mat3, max, clamp, sqrt, exp,
+  mat3, max, min, clamp, sqrt, exp, abs as absNode,
   cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix,
+  cameraPosition,
   varyingProperty, Discard, If,
+  select,
 } from 'three/tsl'
 import type { SplatData } from './SplatData'
 
@@ -36,12 +38,15 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
 
   // --- Vertex Shader ---
   material.vertexNode = Fn(() => {
-    // 1. Splat index
-    const idx = instanceIndex
+    // 1. Resolve splat index via sortOrder indirection
+    //    sortOrder[instanceIndex] → actual splat index (as float, then converted to int)
+    //    Add 0.5 + floor for precision at high indices (270K+) where float→int can drift
+    const sortOrderFloat = attribute('sortOrder') // float attribute
+    const splatIndex = sortOrderFloat.add(0.5).floor().toInt()
 
-    // 2. Texture coordinate from index
-    const u = idx.mod(texWidthUniform)
-    const v = idx.div(texWidthUniform)
+    // 2. Texture coordinate from splat index
+    const u = splatIndex.mod(texWidthUniform)
+    const v = splatIndex.div(texWidthUniform)
     const texCoord = ivec2(u, v)
 
     // 3. Fetch attributes from data textures
@@ -49,9 +54,10 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
     const splatPos = posAndOpacity.xyz
     const opacity = posAndOpacity.w
 
-    const scaleVec = textureLoad(data.scaleTex, texCoord).xyz
+    const rawScale = textureLoad(data.scaleTex, texCoord).xyz
+    // Clamp scales to prevent degenerate splats with enormous quads
+    const scaleVec = clamp(rawScale, vec3(-2.0, -2.0, -2.0), vec3(2.0, 2.0, 2.0))
     const rot = textureLoad(data.rotationTex, texCoord) // RGBA = (w, x, y, z)
-    const color = textureLoad(data.colorTex, texCoord).rgb
 
     // 4. Quaternion → Rotation Matrix (3x3)
     // Texture stores (w, x, y, z) in RGBA channels
@@ -101,9 +107,7 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
     // 6. Project to screen space
     const modelView = cameraViewMatrix.mul(modelWorldMatrix)
     const viewPos = modelView.mul(vec4(splatPos, 1.0)).xyz
-
-    // Frustum culling: degenerate if behind camera
-    const behindCamera = viewPos.z.greaterThan(ZERO)
+    const viewPosZ = n(viewPos.z)
 
     // Focal lengths from projection matrix
     const fx = n((cameraProjectionMatrix as any).element(0).x).mul(viewportUniform.x).mul(0.5)
@@ -150,18 +154,26 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
     const lambda1 = trace.add(sqrtD).mul(0.5)
     const lambda2 = trace.sub(sqrtD).mul(0.5)
 
+    // Sub-pixel culling: if the splat projects smaller than 0.5px, degenerate it
+    const maxRadius = sqrt(max(lambda1, float(0.0001))).mul(3.0)
+    const tooSmall = maxRadius.lessThan(0.5)
+
     // Eigenvector for lambda1
+    // When b ≈ 0, the matrix is already diagonal → axes are axis-aligned
     const rawV1 = vec2(b, lambda1.sub(a))
     const v1Len = sqrt(rawV1.x.mul(rawV1.x).add(rawV1.y.mul(rawV1.y)))
-    const v1 = vec2(
+    const bNearZero = v1Len.lessThan(0.0001)
+    const normalizedV1 = vec2(
       rawV1.x.div(max(v1Len, float(0.0001))),
       rawV1.y.div(max(v1Len, float(0.0001)))
     )
+    const v1 = select(bNearZero, vec2(1.0, 0.0), normalizedV1)
     const v2 = vec2(v1.y.negate(), v1.x)
 
-    // Radii (3σ)
-    const r1 = sqrt(max(lambda1, float(0.0001))).mul(3.0)
-    const r2 = sqrt(max(lambda2, float(0.0001))).mul(3.0)
+    // Radii (3σ) with max pixel clamp — no single splat should exceed 2048px
+    const maxPixelRadius = float(2048.0)
+    const r1 = min(sqrt(max(lambda1, float(0.0001))).mul(3.0), maxPixelRadius)
+    const r2 = min(sqrt(max(lambda2, float(0.0001))).mul(3.0), maxPixelRadius)
 
     // 8. Position the quad vertex
     const quadPos = positionGeometry.xy
@@ -174,10 +186,58 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
     clipPos.x.addAssign(offset.x.mul(2.0).div(viewportUniform.x).mul(clipPos.w))
     clipPos.y.addAssign(offset.y.mul(2.0).div(viewportUniform.y).mul(clipPos.w))
 
-    // Degenerate if behind camera
-    const finalClip = behindCamera.select(vec4(0, 0, 0, 0), clipPos)
+    // 9. Frustum culling
+    // Three.js right-handed: camera looks down -Z, so splats in front have viewPosZ < 0
+    const behindCamera = viewPosZ.greaterThan(ZERO)
+    const tooClose = viewPosZ.greaterThan(float(-0.1))
 
-    // 9. Pass varyings to fragment
+    // Off-screen check using NDC (before quad offset, so use the center clip pos)
+    const centerClip = cameraProjectionMatrix.mul(vec4(viewPos, 1.0))
+    const ndcX = n(centerClip.x).div(n(centerClip.w))
+    const ndcY = n(centerClip.y).div(n(centerClip.w))
+    const margin = float(1.5)
+    const offScreenX = absNode(ndcX).greaterThan(margin)
+    const offScreenY = absNode(ndcY).greaterThan(margin)
+
+    const culled = behindCamera.or(tooClose).or(offScreenX).or(offScreenY).or(tooSmall)
+
+    const finalClip = select(culled, vec4(0, 0, 0, 0), clipPos)
+
+    // 10. Compute color — SH1 if available, flat otherwise
+    let color: Node
+
+    if (data.hasSH1 && data.sh1RTex && data.sh1GTex && data.sh1BTex) {
+      // SH1 view-dependent color
+      const SH_C0 = float(0.28209479177387814)
+      const SH_C1 = float(0.4886025119029199)
+
+      // Base color from colorTex (already converted: 0.5 + SH_C0 * f_dc)
+      const baseColor = textureLoad(data.colorTex, texCoord).rgb
+
+      // SH1 coefficients per channel
+      const sh1R = textureLoad(data.sh1RTex, texCoord).rgb
+      const sh1G = textureLoad(data.sh1GTex, texCoord).rgb
+      const sh1B = textureLoad(data.sh1BTex, texCoord).rgb
+
+      // World-space splat position for view direction
+      const worldPos = n(modelWorldMatrix.mul(vec4(splatPos, 1.0))).xyz
+      const dir = n(worldPos.sub(cameraPosition)).normalize()
+
+      // SH degree-1 basis: Y1_-1 = y, Y1_0 = z, Y1_1 = x
+      const sh1ContribR = SH_C1.mul(sh1R.x.mul(dir.y).add(sh1R.y.mul(dir.z)).add(sh1R.z.mul(dir.x)))
+      const sh1ContribG = SH_C1.mul(sh1G.x.mul(dir.y).add(sh1G.y.mul(dir.z)).add(sh1G.z.mul(dir.x)))
+      const sh1ContribB = SH_C1.mul(sh1B.x.mul(dir.y).add(sh1B.y.mul(dir.z)).add(sh1B.z.mul(dir.x)))
+
+      const colorR = max(ZERO, n(baseColor.r).add(sh1ContribR))
+      const colorG = max(ZERO, n(baseColor.g).add(sh1ContribG))
+      const colorB = max(ZERO, n(baseColor.b).add(sh1ContribB))
+
+      color = vec3(colorR, colorG, colorB)
+    } else {
+      color = textureLoad(data.colorTex, texCoord).rgb
+    }
+
+    // 11. Pass varyings to fragment
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
     const vQuadPos = varyingProperty('vec2', 'vQuadPos')
@@ -187,11 +247,19 @@ export function createSplatMaterial(data: SplatData): THREE.NodeMaterial {
     vOpacity.assign(opacity)
     vQuadPos.assign(quadPos)
 
-    // Conic (inverse of 2x2 covariance)
-    const invDet = ONE.div(max(det, float(0.0001)))
+    // Conic (inverse of 2x2 covariance) — clamp determinant to avoid blowup
+    const safeDet = max(det, float(0.0001))
+    const invDet = ONE.div(safeDet)
     vConic.assign(vec3(c.mul(invDet), n(b).negate().mul(invDet), a.mul(invDet)))
 
-    return finalClip
+    // NaN guard: if any component is NaN (NaN != NaN), degenerate the splat
+    const hasNaN = finalClip.x.notEqual(finalClip.x)
+      .or(finalClip.y.notEqual(finalClip.y))
+      .or(finalClip.z.notEqual(finalClip.z))
+      .or(finalClip.w.notEqual(finalClip.w))
+    const safeClip = select(hasNaN, vec4(0, 0, 0, 0), finalClip)
+
+    return safeClip
   })()
 
   // --- Fragment Shader ---

@@ -6,6 +6,11 @@ export class SplatData {
   scaleTex: THREE.DataTexture
   rotationTex: THREE.DataTexture
   colorTex: THREE.DataTexture
+  // SH degree 1 textures — null if source data has no SH coefficients
+  sh1RTex: THREE.DataTexture | null = null
+  sh1GTex: THREE.DataTexture | null = null
+  sh1BTex: THREE.DataTexture | null = null
+  hasSH1: boolean = false
   width: number
   height: number
   count: number
@@ -55,8 +60,39 @@ export class SplatData {
     }
     this.colorTex = this.makeTexture(colorData)
 
+    // SH degree 1 — 9 coefficients per splat: 3 per channel (R, G, B)
+    if (parsed.sh1) {
+      const sh1 = parsed.sh1
+      // sh1 layout: [r0, r1, r2, g0, g1, g2, b0, b1, b2] * count
+      const sh1RData = new Float32Array(texelCount * 4)
+      const sh1GData = new Float32Array(texelCount * 4)
+      const sh1BData = new Float32Array(texelCount * 4)
+
+      for (let i = 0; i < parsed.count; i++) {
+        const base = i * 9
+        // Red channel coefficients
+        sh1RData[i * 4]     = sh1[base]
+        sh1RData[i * 4 + 1] = sh1[base + 1]
+        sh1RData[i * 4 + 2] = sh1[base + 2]
+        // Green channel coefficients
+        sh1GData[i * 4]     = sh1[base + 3]
+        sh1GData[i * 4 + 1] = sh1[base + 4]
+        sh1GData[i * 4 + 2] = sh1[base + 5]
+        // Blue channel coefficients
+        sh1BData[i * 4]     = sh1[base + 6]
+        sh1BData[i * 4 + 1] = sh1[base + 7]
+        sh1BData[i * 4 + 2] = sh1[base + 8]
+      }
+
+      this.sh1RTex = this.makeTexture(sh1RData)
+      this.sh1GTex = this.makeTexture(sh1GData)
+      this.sh1BTex = this.makeTexture(sh1BData)
+      this.hasSH1 = true
+      console.log(`[SplatData] Packed SH1 data into 3 additional textures`)
+    }
+
     // Verify
-    console.log(`[SplatData] Packed ${parsed.count} splats into ${this.width}x${this.height} textures`)
+    console.log(`[SplatData] Packed ${parsed.count} splats into ${this.width}x${this.height} textures (hasSH1=${this.hasSH1})`)
     if (parsed.count > 0) {
       console.log(`[SplatData] Verify positionTex[0]: (${posData[0].toFixed(3)}, ${posData[1].toFixed(3)}, ${posData[2].toFixed(3)}, ${posData[3].toFixed(3)})`)
     }
@@ -76,5 +112,8 @@ export class SplatData {
     this.scaleTex.dispose()
     this.rotationTex.dispose()
     this.colorTex.dispose()
+    this.sh1RTex?.dispose()
+    this.sh1GTex?.dispose()
+    this.sh1BTex?.dispose()
   }
 }
