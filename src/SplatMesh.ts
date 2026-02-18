@@ -21,6 +21,11 @@ export class SplatMesh extends THREE.Object3D {
   private lastSortTime: number = 0
   private sortIntervalMs: number = 50
 
+  /** Suggested camera spawn position (world space, inside the captured volume) */
+  cameraSpawn: THREE.Vector3 = new THREE.Vector3(0, 1.6, 0)
+  /** Suggested camera look-at target (world space) */
+  cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0)
+
   /** Optional callback for LOD load progress (0-100) */
   onLoadProgress: ((percent: number) => void) | null = null
 
@@ -266,6 +271,8 @@ export class SplatMesh extends THREE.Object3D {
   private centerOnBounds(positions: Float32Array, count: number): void {
     if (count === 0) return
 
+    // Compute mean position (centroid) and bounds
+    let sumX = 0, sumY = 0, sumZ = 0
     let minX = Infinity, minY = Infinity, minZ = Infinity
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
 
@@ -273,18 +280,32 @@ export class SplatMesh extends THREE.Object3D {
       const x = positions[i * 3]
       const y = positions[i * 3 + 1]
       const z = positions[i * 3 + 2]
+      sumX += x; sumY += y; sumZ += z
       if (x < minX) minX = x; if (x > maxX) maxX = x
       if (y < minY) minY = y; if (y > maxY) maxY = y
       if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
     }
 
-    const cx = (minX + maxX) / 2
-    const cy = (minY + maxY) / 2
-    const cz = (minZ + maxZ) / 2
+    const meanX = sumX / count
+    const meanY = sumY / count
+    const meanZ = sumZ / count
 
-    this.position.set(-cx, -cy, -cz)
+    // Translate mesh so centroid is at world origin
+    this.position.set(-meanX, -meanY, -meanZ)
+
+    // Camera spawn: at the centroid (world origin after translation).
+    // Use a robust floor estimate by taking the 5th percentile of Y values
+    // to avoid outlier splats far below the actual floor.
+    const yValues = new Float32Array(count)
+    for (let i = 0; i < count; i++) yValues[i] = positions[i * 3 + 1]
+    yValues.sort()
+    const floorY5pct = yValues[Math.floor(count * 0.05)] - meanY
+    this.cameraSpawn.set(0, floorY5pct + 1.6, 0)
+    this.cameraTarget.set(0, floorY5pct + 1.6, -0.1) // look forward along -Z
 
     console.log(`[SplatMesh] Bounds: (${minX.toFixed(2)}, ${minY.toFixed(2)}, ${minZ.toFixed(2)}) → (${maxX.toFixed(2)}, ${maxY.toFixed(2)}, ${maxZ.toFixed(2)})`)
-    console.log(`[SplatMesh] Centered at (${cx.toFixed(2)}, ${cy.toFixed(2)}, ${cz.toFixed(2)})`)
+    console.log(`[SplatMesh] Centroid: (${meanX.toFixed(2)}, ${meanY.toFixed(2)}, ${meanZ.toFixed(2)})`)
+    console.log(`[SplatMesh] Floor (5th pct Y): ${(floorY5pct + meanY).toFixed(2)} → world Y=${floorY5pct.toFixed(2)}`)
+    console.log(`[SplatMesh] Camera spawn (world): (${this.cameraSpawn.x.toFixed(2)}, ${this.cameraSpawn.y.toFixed(2)}, ${this.cameraSpawn.z.toFixed(2)})`)
   }
 }

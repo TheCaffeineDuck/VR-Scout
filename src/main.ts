@@ -72,6 +72,11 @@ async function init() {
   }
   scene.add(splat)
 
+  // Position camera inside the captured volume
+  camera.position.copy(splat.cameraSpawn)
+  controls.target.copy(splat.cameraTarget)
+  controls.update()
+
   // Trigger an initial depth sort so the scene is correct on first render
   splat.triggerInitialSort(camera)
 

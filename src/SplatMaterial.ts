@@ -68,9 +68,7 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const splatPos = posAndOpacity.xyz
     const opacity = posAndOpacity.w
 
-    const rawScale = textureLoad(data.scaleTex, texCoord).xyz
-    // Clamp scales to prevent degenerate splats with enormous quads
-    const scaleVec = clamp(rawScale, vec3(-2.0, -2.0, -2.0), vec3(2.0, 2.0, 2.0))
+    const scaleVec = textureLoad(data.scaleTex, texCoord).xyz
     const rot = textureLoad(data.rotationTex, texCoord) // RGBA = (w, x, y, z)
 
     // 4. Quaternion → Rotation Matrix (3x3)
