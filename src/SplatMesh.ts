@@ -12,7 +12,7 @@ export class SplatMesh extends THREE.Object3D {
   private mesh: THREE.Mesh | null = null
   private data: SplatData | null = null
   private sorter: SplatSorter | null = null
-  private gpuSort: GpuSort | null = null
+  gpuSort: GpuSort | null = null  // public for debugging
   private positions: Float32Array | null = null
   private renderer: THREE.WebGPURenderer | null = null
   private useGpuSort: boolean = false
@@ -34,8 +34,10 @@ export class SplatMesh extends THREE.Object3D {
    */
   setRenderer(renderer: THREE.WebGPURenderer): void {
     this.renderer = renderer
+    // Use GPU sort on native WebGPU backend, CPU sort on WebGL fallback.
     this.useGpuSort = this._isNativeWebGPU(renderer)
-    console.log(`[SplatMesh] Backend: ${this.useGpuSort ? 'WebGPU (GPU sort)' : 'WebGL (CPU sort)'}`)
+    const backend = this.useGpuSort ? 'WebGPU (GPU sort)' : 'WebGL (CPU sort)'
+    console.log(`[SplatMesh] Backend: ${backend}`)
   }
 
   async load(url: string): Promise<void> {
@@ -144,6 +146,23 @@ export class SplatMesh extends THREE.Object3D {
     this.data = new SplatData(parsed)
     this.positions = parsed.positions
 
+    // Pre-compute scene diagonal for GPU sort normalization
+    let minX = Infinity, minY = Infinity, minZ = Infinity
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+    for (let i = 0; i < parsed.count; i++) {
+      const x = parsed.positions[i * 3], y = parsed.positions[i * 3 + 1], z = parsed.positions[i * 3 + 2]
+      if (x < minX) minX = x; if (x > maxX) maxX = x
+      if (y < minY) minY = y; if (y > maxY) maxY = y
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
+    }
+    const extX = maxX - minX, extY = maxY - minY, extZ = maxZ - minZ
+    const sceneDiagonal = Math.sqrt(extX * extX + extY * extY + extZ * extZ)
+    // maxExtent = longest single axis — a tighter bound than the full diagonal.
+    // GPU sort uses this to normalize distances: splats beyond maxExtent get key=0.
+    // Using maxExtent instead of diagonal spreads the 2048 depth buckets over a
+    // tighter range, giving better sort precision for scenes viewed from inside.
+    const maxExtent = Math.max(extX, extY, extZ)
+
     const useGpu = this.useGpuSort && this.renderer
 
     if (useGpu) {
@@ -153,7 +172,8 @@ export class SplatMesh extends THREE.Object3D {
         this.data.positionTex,
         this.data.width,
         this.data.height,
-        this.renderer!
+        this.renderer!,
+        maxExtent
       )
       this.sorter = null
 
@@ -390,21 +410,41 @@ export class SplatMesh extends THREE.Object3D {
       this.position.set(-meanX, meanY, meanZ)
     }
 
-    // Determine scene type based on standard deviation (robust to outliers).
-    // Use the largest StdDev as a proxy for scene "radius".
-    // Small objects have maxSD < 2.0 (about 4m at 2σ), environments are larger.
+    // Determine scene type.
+    // Use the largest StdDev as a proxy for scene radius, and bounding box aspect ratio
+    // to distinguish tabletop/object scans from true room-scale environments.
     const maxSD = Math.max(sdX, sdY, sdZ)
-    const isSmallObject = maxSD < 2.0
 
-    console.log(`[SplatMesh] Scene type: ${isSmallObject ? 'SMALL OBJECT' : 'ENVIRONMENT'} (maxSD=${maxSD.toFixed(2)})`)
+    // Aspect ratio: horizontal extent vs vertical extent.
+    // Tabletop scenes (bonsai, object-on-table) have wide horizontal spread
+    // but limited vertical height → ratio > 2.5.
+    // Rooms have more balanced proportions (floor to ceiling is significant).
+    const horizontalExtent = Math.max(extX, extZ)
+    const verticalExtent = extY
+    const hToVRatio = verticalExtent > 0 ? horizontalExtent / verticalExtent : 999
+
+    const isSmallObject = maxSD < 2.0
+    // Tabletop: wider than tall AND small enough to be an actual tabletop object.
+    // maxSD < 3.5 excludes kitchen/room scenes (maxSD ~5-6) while keeping bonsai (maxSD ~1.5-2.5).
+    const isTabletop = !isSmallObject && maxSD < 3.5 && hToVRatio > 2.5
+
+    console.log(`[SplatMesh] Scene type: ${isSmallObject ? 'SMALL OBJECT' : isTabletop ? 'TABLETOP' : 'ENVIRONMENT'} (maxSD=${maxSD.toFixed(2)}, hToV=${hToVRatio.toFixed(2)})`)
 
     if (isSmallObject) {
       // Small object scan: position camera outside looking at center
-      // Camera at 2x diagonal distance, slightly above center, looking at origin
       const camDist = diagonal * 1.5
       this.cameraSpawn.set(0, diagonal * 0.3, camDist)
       this.cameraTarget.set(0, 0, 0)
       console.log(`[SplatMesh] Object mode: cam distance=${camDist.toFixed(2)}`)
+    } else if (isTabletop) {
+      // Tabletop scene: camera above and in front, angled down to see the whole surface.
+      // Use the horizontal extent to determine viewing distance,
+      // and place camera above the top of the scene.
+      const viewDist = horizontalExtent * 0.8
+      const aboveHeight = verticalExtent * 0.6 + 0.5  // above top of scene
+      this.cameraSpawn.set(0, aboveHeight, viewDist)
+      this.cameraTarget.set(0, 0, 0) // look at center
+      console.log(`[SplatMesh] Tabletop mode: viewDist=${viewDist.toFixed(2)}, aboveH=${aboveHeight.toFixed(2)}`)
     } else {
       // Room/environment: use floor detection + standing height
       // Collect Y values in world space (after any rotation fix)
@@ -434,10 +474,16 @@ export class SplatMesh extends THREE.Object3D {
       // Place camera at floor + 1.6m, but cap at 60% of room height
       const eyeHeight = Math.min(1.6, roomHeight * 0.6)
       const camY = floorY + eyeHeight
-      this.cameraSpawn.set(0, camY, 0)
-      this.cameraTarget.set(0, camY, -0.1) // look forward along -Z
 
-      console.log(`[SplatMesh] Environment mode: floor=${floorY.toFixed(2)}, ceil=${ceilY.toFixed(2)}, height=${roomHeight.toFixed(2)}, eyeY=${camY.toFixed(2)}`)
+      // Place camera back enough to avoid spawning inside foreground objects.
+      // Use 0.75x the horizontal SD — more conservative than the previous 0.5x.
+      // This helps with scenes like kitchen where foreground objects are dense near center.
+      const horizontalSD = Math.max(sdX, sdZ)
+      const camZ = horizontalSD * 0.75
+      this.cameraSpawn.set(0, camY, camZ)
+      this.cameraTarget.set(0, camY, camZ - 1.0) // look forward along -Z
+
+      console.log(`[SplatMesh] Environment mode: floor=${floorY.toFixed(2)}, ceil=${ceilY.toFixed(2)}, height=${roomHeight.toFixed(2)}, eyeY=${camY.toFixed(2)}, camZ=${camZ.toFixed(2)}`)
     }
 
     // URL parameter overrides for manual testing

@@ -71,7 +71,24 @@ export function parseSplat(buffer: ArrayBuffer): ParsedSplatData {
   console.log(`[parseSplat] Parsed ${count} splats`)
   if (count > 0) {
     console.log(`[parseSplat] Sample pos[0]: (${positions[0].toFixed(3)}, ${positions[1].toFixed(3)}, ${positions[2].toFixed(3)})`)
+    console.log(`[parseSplat] Sample scale[0]: (${scales[0].toFixed(6)}, ${scales[1].toFixed(6)}, ${scales[2].toFixed(6)})`)
+    console.log(`[parseSplat] Sample rot[0]: (${rotations[0].toFixed(4)}, ${rotations[1].toFixed(4)}, ${rotations[2].toFixed(4)}, ${rotations[3].toFixed(4)})`)
     console.log(`[parseSplat] Sample color[0]: (${colors[0].toFixed(3)}, ${colors[1].toFixed(3)}, ${colors[2].toFixed(3)}) opacity: ${opacities[0].toFixed(3)}`)
+    // Scale statistics
+    let minS = Infinity, maxS = -Infinity, sumS = 0
+    for (let i = 0; i < count * 3; i++) {
+      const s = scales[i]
+      if (s < minS) minS = s
+      if (s > maxS) maxS = s
+      sumS += s
+    }
+    console.log(`[parseSplat] Scale stats: min=${minS.toFixed(6)}, max=${maxS.toFixed(6)}, mean=${(sumS / (count * 3)).toFixed(6)}`)
+    // Check if scales look like log values (mostly negative)
+    let negCount = 0
+    for (let i = 0; i < Math.min(count * 3, 1000); i++) {
+      if (scales[i] < 0) negCount++
+    }
+    console.log(`[parseSplat] First 1000 scale values: ${negCount} negative (if mostly negative, scales are log-encoded)`)
   }
 
   return { count, positions, scales, rotations, colors, opacities, sh1: null }

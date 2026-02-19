@@ -7,7 +7,64 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: #111; }
-      canvas { display: block; width: 100%; height: 100%; }
+      canvas { display: block; }
+
+      /* Normal mode: single full-screen canvas */
+      body.normal-mode canvas { width: 100%; height: 100%; }
+
+      /* Split mode: two canvases side by side */
+      body.split-mode {
+        display: flex;
+        flex-direction: row;
+      }
+      body.split-mode .split-pane {
+        position: relative;
+        width: 50%;
+        height: 100%;
+        flex-shrink: 0;
+      }
+      body.split-mode .split-pane canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      body.split-mode .split-label {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #fff;
+        background: rgba(0,0,0,0.6);
+        font: bold 13px monospace;
+        padding: 4px 10px;
+        border-radius: 4px;
+        pointer-events: none;
+        z-index: 10;
+        white-space: nowrap;
+      }
+      body.split-mode .split-fps {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #0f0;
+        background: rgba(0,0,0,0.6);
+        font: 12px monospace;
+        padding: 3px 8px;
+        border-radius: 4px;
+        pointer-events: none;
+        z-index: 10;
+      }
+      body.split-mode .split-divider {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        width: 2px;
+        height: 100%;
+        background: rgba(255,255,255,0.3);
+        z-index: 20;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>

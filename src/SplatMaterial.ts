@@ -3,25 +3,20 @@ import type { Node } from 'three/webgpu'
 import {
   Fn, uniform, textureLoad, attribute, instanceIndex,
   positionGeometry,
-  vec2, vec3, vec4, float, int, ivec2,
-  mat3, max, min, clamp, sqrt, exp, abs as absNode,
+  vec2, vec3, vec4, float, int, uint, ivec2,
+  max, min, clamp, sqrt, exp,
   cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix,
   cameraPosition,
   varyingProperty, Discard, If,
-  select,
+  select, normalize,
 } from 'three/tsl'
 import type { SplatData } from './SplatData'
 
-// Helper: TSL .element() and swizzles return Nodes at runtime but @types/three
-// doesn't type them. We cast through this helper.
 const n = (v: any) => v as Node
-
 const ZERO = float(0)
 const ONE = float(1)
 
 export interface SplatMaterialOptions {
-  /** GPU sort index buffer — when provided, the vertex shader reads sorted indices from this
-   *  storage buffer instead of the sortOrder instance attribute. */
   gpuIndexBuffer?: any | null
 }
 
@@ -38,315 +33,236 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
 
   const viewportUniform = uniform(new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio), 'vec2')
   const texWidthUniform = uniform(data.width, 'int')
-
-  // Store reference for updating viewport
   ;(material as any)._viewportUniform = viewportUniform
 
   const gpuIndexBuffer = options?.gpuIndexBuffer ?? null
 
   // --- Vertex Shader ---
   material.vertexNode = Fn(() => {
-    // 1. Resolve splat index via sort indirection
+    // 1. Resolve splat index
     let splatIndex: any
     if (gpuIndexBuffer) {
-      // GPU sort path: read sorted index directly from storage buffer
-      splatIndex = gpuIndexBuffer.element(instanceIndex).toInt()
+      // GPU sort packs: bits[31:21] = distance key, bits[20:0] = original splat index
+      // Extract lower 21 bits to get the actual splat index
+      const packed = gpuIndexBuffer.element(instanceIndex)
+      splatIndex = packed.bitAnd(uint(0x1FFFFF)).toInt()
     } else {
-      // CPU sort path: sortOrder[instanceIndex] → actual splat index (as float, then int)
-      // Add 0.5 + floor for precision at high indices (270K+) where float→int can drift
       const sortOrderFloat = attribute('sortOrder')
       splatIndex = sortOrderFloat.add(0.5).floor().toInt()
     }
 
-    // 2. Texture coordinate from splat index
     const u = splatIndex.mod(texWidthUniform)
     const v = splatIndex.div(texWidthUniform)
     const texCoord = ivec2(u, v)
 
-    // 3. Fetch attributes from data textures
+    // 2. Fetch attributes
     const posAndOpacity = textureLoad(data.positionTex, texCoord)
     const splatPos = posAndOpacity.xyz
     const opacity = posAndOpacity.w
 
     const scaleVec = textureLoad(data.scaleTex, texCoord).xyz
-    const rot = textureLoad(data.rotationTex, texCoord) // RGBA = (w, x, y, z)
+    const rot = textureLoad(data.rotationTex, texCoord)
 
-    // Scale-based culling: splats with very large 3D scales are outliers from training.
-    // They create huge blobs that obscure the actual scene. Cull if any scale axis > 2.0.
     const maxScale = max(max(scaleVec.x, scaleVec.y), scaleVec.z)
     const tooLargeScale = maxScale.greaterThan(float(2.0))
 
-    // 4. Quaternion → Rotation Matrix (3x3)
-    // Texture stores (w, x, y, z) in RGBA channels
-    const qw = rot.x
-    const qx = rot.y
-    const qy = rot.z
-    const qz = rot.w
+    // 3. Quaternion → Rotation Matrix
+    const qw = rot.x, qx = rot.y, qy = rot.z, qz = rot.w
 
-    const x2 = qx.mul(qx)
-    const y2 = qy.mul(qy)
-    const z2 = qz.mul(qz)
-    const xy = qx.mul(qy)
-    const xz = qx.mul(qz)
-    const yz = qy.mul(qz)
-    const wx = qw.mul(qx)
-    const wy = qw.mul(qy)
-    const wz = qw.mul(qz)
+    const x2 = qx.mul(qx), y2 = qy.mul(qy), z2 = qz.mul(qz)
+    const xy = qx.mul(qy), xz = qx.mul(qz), yz = qy.mul(qz)
+    const wx = qw.mul(qx), wy = qw.mul(qy), wz = qw.mul(qz)
 
-    // Column-major mat3 — each argument is a column vector.
-    // Standard rotation matrix from quaternion (row-major form):
-    //   Row 0: (1-2(y²+z²),  2(xy-wz),    2(xz+wy))
-    //   Row 1: (2(xy+wz),    1-2(x²+z²),  2(yz-wx))
-    //   Row 2: (2(xz-wy),    2(yz+wx),    1-2(x²+y²))
-    // In column-major, mat3(col0, col1, col2) where colN is column N of R:
-    //   col0 = (R[0][0], R[1][0], R[2][0]) = (1-2(y²+z²), 2(xy+wz), 2(xz-wy))
-    //   col1 = (R[0][1], R[1][1], R[2][1]) = (2(xy-wz),   1-2(x²+z²), 2(yz+wx))
-    //   col2 = (R[0][2], R[1][2], R[2][2]) = (2(xz+wy),   2(yz-wx),   1-2(x²+y²))
-    const rotMat = mat3(
-      vec3(ONE.sub(y2.add(z2).mul(2)), xy.add(wz).mul(2), xz.sub(wy).mul(2)),
-      vec3(xy.sub(wz).mul(2), ONE.sub(x2.add(z2).mul(2)), yz.add(wx).mul(2)),
-      vec3(xz.add(wy).mul(2), yz.sub(wx).mul(2), ONE.sub(x2.add(y2).mul(2)))
-    )
+    // R[row][col] elements of the standard quaternion rotation matrix
+    const r00 = ONE.sub(y2.add(z2).mul(2))
+    const r01 = xy.sub(wz).mul(2)
+    const r02 = xz.add(wy).mul(2)
+    const r10 = xy.add(wz).mul(2)
+    const r11 = ONE.sub(x2.add(z2).mul(2))
+    const r12 = yz.sub(wx).mul(2)
+    const r20 = xz.sub(wy).mul(2)
+    const r21 = yz.add(wx).mul(2)
+    const r22 = ONE.sub(x2.add(y2).mul(2))
 
-    // 5. 3D Covariance: M = R * S, cov3D = M * M^T
-    const scaleMat = mat3(
-      vec3(scaleVec.x, ZERO, ZERO),
-      vec3(ZERO, scaleVec.y, ZERO),
-      vec3(ZERO, ZERO, scaleVec.z)
-    )
-    const M = rotMat.mul(scaleMat)
+    // 4. 3D Covariance: Σ = R^T * S² * R (CUDA convention: M = S*R, Σ = M^T*M)
+    // Σ[i][j] = Σ_k R[k][i] * S[k]² * R[k][j]
+    const sx2 = scaleVec.x.mul(scaleVec.x)
+    const sy2 = scaleVec.y.mul(scaleVec.y)
+    const sz2 = scaleVec.z.mul(scaleVec.z)
 
-    // Transpose of M — element(i) returns column i, then swizzle to get components
-    const m = (matrix: any) => ({
-      col: (i: number) => (matrix as any).element(i),
-      at: (col: number, comp: string) => n((matrix as any).element(col)[comp]),
-    })
-    const mM = m(M)
-    const Mt = mat3(
-      vec3(mM.at(0, 'x'), mM.at(1, 'x'), mM.at(2, 'x')),
-      vec3(mM.at(0, 'y'), mM.at(1, 'y'), mM.at(2, 'y')),
-      vec3(mM.at(0, 'z'), mM.at(1, 'z'), mM.at(2, 'z'))
-    )
-    const cov3D = M.mul(Mt)
+    const cov00 = r00.mul(r00).mul(sx2).add(r10.mul(r10).mul(sy2)).add(r20.mul(r20).mul(sz2))
+    const cov01 = r00.mul(r01).mul(sx2).add(r10.mul(r11).mul(sy2)).add(r20.mul(r21).mul(sz2))
+    const cov02 = r00.mul(r02).mul(sx2).add(r10.mul(r12).mul(sy2)).add(r20.mul(r22).mul(sz2))
+    const cov11 = r01.mul(r01).mul(sx2).add(r11.mul(r11).mul(sy2)).add(r21.mul(r21).mul(sz2))
+    const cov12 = r01.mul(r02).mul(sx2).add(r11.mul(r12).mul(sy2)).add(r21.mul(r22).mul(sz2))
+    const cov22 = r02.mul(r02).mul(sx2).add(r12.mul(r12).mul(sy2)).add(r22.mul(r22).mul(sz2))
 
-    // 6. Project to screen space
+    // 5. Transform to screen space
     const modelView = cameraViewMatrix.mul(modelWorldMatrix)
     const viewPos = modelView.mul(vec4(splatPos, 1.0)).xyz
     const viewPosZ = n(viewPos.z)
 
-    // Focal lengths from projection matrix
-    const fx = n((cameraProjectionMatrix as any).element(0).x).mul(viewportUniform.x).mul(0.5)
-    const fy = n((cameraProjectionMatrix as any).element(1).y).mul(viewportUniform.y).mul(0.5)
-
-    // Jacobian of the perspective projection, scaled by focal lengths.
-    // Three.js camera looks down -Z, so viewPos.z < 0 for visible splats.
-    // We negate to get positive depth tz > 0, which keeps Jacobian diagonal positive
-    // and makes the covariance computation numerically stable.
-    const tz = viewPosZ.negate()  // positive depth (abs(viewPos.z))
+    const tz = max(viewPosZ.negate(), float(0.3))
     const tz2 = tz.mul(tz)
-    const J = mat3(
-      vec3(fx.div(tz), ZERO, ZERO),
-      vec3(ZERO, fy.div(tz), ZERO),
-      vec3(fx.negate().mul(viewPos.x).div(tz2), fy.negate().mul(viewPos.y).div(tz2), ZERO)
-    )
 
-    // View-space rotation (upper-left 3x3 of modelview)
-    const W = mat3(
-      n((modelView as any).element(0).xyz),
-      n((modelView as any).element(1).xyz),
-      n((modelView as any).element(2).xyz)
-    )
+    const focalX = n((cameraProjectionMatrix as any).element(0).x).mul(viewportUniform.x).mul(0.5)
+    const focalY = n((cameraProjectionMatrix as any).element(1).y).mul(viewportUniform.y).mul(0.5)
 
-    const T = J.mul(W)
+    // Clamp view-space x,y (CUDA reference)
+    const tanFovX = float(1.0).div(n((cameraProjectionMatrix as any).element(0).x))
+    const tanFovY = float(1.0).div(n((cameraProjectionMatrix as any).element(1).y))
+    const limX = tanFovX.mul(1.3).mul(tz)
+    const limY = tanFovY.mul(1.3).mul(tz)
+    const tx = clamp(n(viewPos.x), limX.negate(), limX)
+    const ty = clamp(n(viewPos.y), limY.negate(), limY)
 
-    // Transpose of T
-    const mT = m(T)
-    const Tt = mat3(
-      vec3(mT.at(0, 'x'), mT.at(1, 'x'), mT.at(2, 'x')),
-      vec3(mT.at(0, 'y'), mT.at(1, 'y'), mT.at(2, 'y')),
-      vec3(mT.at(0, 'z'), mT.at(1, 'z'), mT.at(2, 'z'))
-    )
-    const cov2Dfull = T.mul(cov3D).mul(Tt)
+    // 6. Compute 2D covariance: cov2d = J * W * Vrk * W^T * J^T
+    //
+    // W = upper 3x3 of modelView (world-to-camera rotation)
+    const mv = (col: number, comp: string) => n((modelView as any).element(col)[comp])
+    const w00 = mv(0, 'x'), w01 = mv(1, 'x'), w02 = mv(2, 'x')
+    const w10 = mv(0, 'y'), w11 = mv(1, 'y'), w12 = mv(2, 'y')
+    const w20 = mv(0, 'z'), w21 = mv(1, 'z'), w22 = mv(2, 'z')
 
-    // 2x2 upper-left + stability term
-    const mc = m(cov2Dfull)
-    const a = n(mc.at(0, 'x')).add(0.3)
-    const b = mc.at(0, 'y')
-    const c = n(mc.at(1, 'y')).add(0.3)
+    // Jacobian
+    const j00 = focalX.div(tz)
+    const j02 = focalX.negate().mul(tx).div(tz2)
+    const j11 = focalY.div(tz)
+    const j12 = focalY.negate().mul(ty).div(tz2)
 
-    // 7. Eigendecomposition → Ellipse axes
-    const det = a.mul(c).sub(n(b).mul(b))
-    const trace = a.add(c)
-    const disc = max(float(0.1), trace.mul(trace).sub(det.mul(4)))
-    const sqrtD = sqrt(disc)
-    const lambda1 = trace.add(sqrtD).mul(0.5)
-    const lambda2 = trace.sub(sqrtD).mul(0.5)
+    // Compute T = W^T * J using scalars (W^T[i][k] = W[k][i])
+    // T[i][j] = Σ_k W[k][i] * J[k][j]
+    // J only has j00 at [0][0], j11 at [1][1], j02 at [0][2], j12 at [1][2]
+    const t00 = w00.mul(j00)
+    const t01 = w10.mul(j11)
+    const t02 = w00.mul(j02).add(w10.mul(j12))
+    const t10 = w01.mul(j00)
+    const t11 = w11.mul(j11)
+    const t12 = w01.mul(j02).add(w11.mul(j12))
+    const t20 = w02.mul(j00)
+    const t21 = w12.mul(j11)
+    const t22 = w02.mul(j02).add(w12.mul(j12))
 
-    // Sub-pixel culling: if the splat projects smaller than 0.5px, degenerate it
-    const maxRadius = sqrt(max(lambda1, float(0.0001))).mul(3.0)
-    const tooSmall = maxRadius.lessThan(0.5)
+    // cov2d = T^T * Vrk * T (only need upper-left 2x2)
+    // P = Vrk * T (columns 0 and 1 only)
+    const p00 = cov00.mul(t00).add(cov01.mul(t10)).add(cov02.mul(t20))
+    const p10 = cov01.mul(t00).add(cov11.mul(t10)).add(cov12.mul(t20))
+    const p20 = cov02.mul(t00).add(cov12.mul(t10)).add(cov22.mul(t20))
+    const p01 = cov00.mul(t01).add(cov01.mul(t11)).add(cov02.mul(t21))
+    const p11 = cov01.mul(t01).add(cov11.mul(t11)).add(cov12.mul(t21))
+    const p21 = cov02.mul(t01).add(cov12.mul(t11)).add(cov22.mul(t21))
 
-    // Eigenvector for lambda1
-    // When b ≈ 0, the matrix is already diagonal → axes are axis-aligned
-    const rawV1 = vec2(b, lambda1.sub(a))
-    const v1Len = sqrt(rawV1.x.mul(rawV1.x).add(rawV1.y.mul(rawV1.y)))
-    const bNearZero = v1Len.lessThan(0.0001)
-    const normalizedV1 = vec2(
-      rawV1.x.div(max(v1Len, float(0.0001))),
-      rawV1.y.div(max(v1Len, float(0.0001)))
-    )
-    const v1 = select(bNearZero, vec2(1.0, 0.0), normalizedV1)
-    const v2 = vec2(v1.y.negate(), v1.x)
+    // cov2d[i][j] = T^T[i][k] * P[k][j] = T[k][i] * P[k][j]
+    const a = t00.mul(p00).add(t10.mul(p10)).add(t20.mul(p20)).add(0.3)
+    const b = t00.mul(p01).add(t10.mul(p11)).add(t20.mul(p21))
+    const c = t01.mul(p01).add(t11.mul(p11)).add(t21.mul(p21)).add(0.3)
 
-    // Radii (3σ): sqrt(eigenvalue) * 3 gives the 3-sigma radius in pixels.
-    const rawR1 = sqrt(max(lambda1, float(0.0001))).mul(3.0)
-    const rawR2 = sqrt(max(lambda2, float(0.0001))).mul(3.0)
+    // 7. Eigendecomposition (antimatter15 formula)
+    const mid = a.add(c).mul(0.5)
+    const radius = sqrt(max(a.sub(c).mul(0.5).mul(a.sub(c).mul(0.5)).add(n(b).mul(b)), float(0.0001)))
+    const lambda1 = mid.add(radius)
+    const lambda2 = mid.sub(radius)
 
-    // Cap each radius at 800px max to prevent massive splats
-    const maxPixelRadius = float(800.0)
-    const r1 = min(rawR1, maxPixelRadius)
-    const r2 = min(rawR2, maxPixelRadius)
+    const tooSmall = lambda2.lessThan(float(0.0))
 
-    // Aspect ratio: compute for culling check
-    const maxR = max(rawR1, rawR2)
-    const minR = max(min(rawR1, rawR2), float(0.01))
-    const aspectRatio = maxR.div(minR)
-    // Hard cull at 20:1 — these are extremely elongated edge-on splats
-    const tooElongated = aspectRatio.greaterThan(float(20.0))
+    // Use 3*sqrt(λ) for 3-sigma coverage (99.7% of the Gaussian)
+    // This is the correct formulation — NOT sqrt(2λ) which was wrong
+    const diagVec = n(normalize(vec2(b, lambda1.sub(a))))
+    const r1 = min(sqrt(max(lambda1, float(0.0001))).mul(3.0), float(1024.0))
+    const r2 = min(sqrt(max(lambda2, float(0.0001))).mul(3.0), float(1024.0))
+    const majorAxis = diagVec.mul(r1)
+    const minorAxis = vec2(n(diagVec.y).negate(), diagVec.x).mul(r2)
 
-    // Smooth opacity reduction for moderately elongated splats (5:1 to 20:1).
-    // elongFade = 1.0 when aspect <= 5, fades to 0.0 at aspect = 20
-    const elongFade = clamp(float(20.0).sub(aspectRatio).div(15.0), 0.0, 1.0)
+    // 8. Position quad vertex
+    const quadPos = positionGeometry.xy.mul(2.0)
+    const pixelOffset = majorAxis.mul(quadPos.x).add(minorAxis.mul(quadPos.y))
 
-    // 8. Position the quad vertex
-    const quadPos = positionGeometry.xy
-    // offset is in pixel space — this is what we pass to the fragment shader
-    const offset = v1.mul(quadPos.x).mul(r1).add(v2.mul(quadPos.y).mul(r2))
-
-    // Project splat center to clip space
     const clipPos = cameraProjectionMatrix.mul(vec4(viewPos, 1.0)).toVar()
-
-    // Apply pixel offset in clip space
-    clipPos.x.addAssign(offset.x.mul(2.0).div(viewportUniform.x).mul(clipPos.w))
-    clipPos.y.addAssign(offset.y.mul(2.0).div(viewportUniform.y).mul(clipPos.w))
+    clipPos.x.addAssign(pixelOffset.x.mul(2.0).div(viewportUniform.x).mul(clipPos.w))
+    clipPos.y.addAssign(pixelOffset.y.mul(2.0).div(viewportUniform.y).mul(clipPos.w))
 
     // 9. Frustum culling
-    // Three.js right-handed: camera looks down -Z, so splats in front have viewPosZ < 0
     const behindCamera = viewPosZ.greaterThan(ZERO)
-    // Near-plane culling: splats closer than 0.2m are inside the viewer's head
-    const tooClose = viewPosZ.greaterThan(float(-0.2))
-
-    // Opacity fade for near splats: smoothly fade from 0.2m to 2.0m depth.
-    // tz is positive depth (negated viewPosZ). Fade = clamp((tz - 0.2) / 1.8, 0, 1)
-    const nearFade = clamp(tz.sub(0.2).div(1.8), 0.0, 1.0)
-
-    // Off-screen check using NDC (before quad offset, so use the center clip pos)
     const centerClip = cameraProjectionMatrix.mul(vec4(viewPos, 1.0))
-    const ndcX = n(centerClip.x).div(n(centerClip.w))
-    const ndcY = n(centerClip.y).div(n(centerClip.w))
-    const margin = float(1.5)
-    const offScreenX = absNode(ndcX).greaterThan(margin)
-    const offScreenY = absNode(ndcY).greaterThan(margin)
+    const clipW = n(centerClip.w).mul(1.2)
+    const offScreen = n(centerClip.z).lessThan(clipW.negate())
+      .or(n(centerClip.x).lessThan(clipW.negate()))
+      .or(n(centerClip.x).greaterThan(clipW))
+      .or(n(centerClip.y).lessThan(clipW.negate()))
+      .or(n(centerClip.y).greaterThan(clipW))
 
-    const culled = behindCamera.or(tooClose).or(offScreenX).or(offScreenY).or(tooSmall).or(tooElongated).or(tooLargeScale)
-
+    const culled = behindCamera.or(offScreen).or(tooSmall).or(tooLargeScale)
     const finalClip = select(culled, vec4(0, 0, 0, 0), clipPos)
 
-    // 10. Compute color — SH1 if available, flat otherwise
+    // 10. Color
     let color: Node
-
     if (data.hasSH1 && data.sh1RTex && data.sh1GTex && data.sh1BTex) {
-      // SH1 view-dependent color
-      const SH_C0 = float(0.28209479177387814)
       const SH_C1 = float(0.4886025119029199)
-
-      // Base color from colorTex (already converted: 0.5 + SH_C0 * f_dc)
       const baseColor = textureLoad(data.colorTex, texCoord).rgb
-
-      // SH1 coefficients per channel
       const sh1R = textureLoad(data.sh1RTex, texCoord).rgb
       const sh1G = textureLoad(data.sh1GTex, texCoord).rgb
       const sh1B = textureLoad(data.sh1BTex, texCoord).rgb
-
-      // World-space splat position for view direction
       const worldPos = n(modelWorldMatrix.mul(vec4(splatPos, 1.0))).xyz
       const dir = n(worldPos.sub(cameraPosition)).normalize()
-
-      // SH degree-1 basis: Y1_-1 = y, Y1_0 = z, Y1_1 = x
       const sh1ContribR = SH_C1.mul(sh1R.x.mul(dir.y).add(sh1R.y.mul(dir.z)).add(sh1R.z.mul(dir.x)))
       const sh1ContribG = SH_C1.mul(sh1G.x.mul(dir.y).add(sh1G.y.mul(dir.z)).add(sh1G.z.mul(dir.x)))
       const sh1ContribB = SH_C1.mul(sh1B.x.mul(dir.y).add(sh1B.y.mul(dir.z)).add(sh1B.z.mul(dir.x)))
-
-      const colorR = max(ZERO, n(baseColor.r).add(sh1ContribR))
-      const colorG = max(ZERO, n(baseColor.g).add(sh1ContribG))
-      const colorB = max(ZERO, n(baseColor.b).add(sh1ContribB))
-
-      color = vec3(colorR, colorG, colorB)
+      color = vec3(max(ZERO, n(baseColor.r).add(sh1ContribR)), max(ZERO, n(baseColor.g).add(sh1ContribG)), max(ZERO, n(baseColor.b).add(sh1ContribB)))
     } else {
       color = textureLoad(data.colorTex, texCoord).rgb
     }
 
-    // 11. Compute conic (inverse 2x2 covariance) for fragment Gaussian evaluation
-    // conic = (c/det, -b/det, a/det) → used as: conic.x*dx² + 2*conic.y*dx*dy + conic.z*dy²
-    const invDet = float(1.0).div(max(det, float(0.000001)))
-    const conicX = c.mul(invDet)
-    const conicY = n(b).negate().mul(invDet)
-    const conicZ = a.mul(invDet)
-
-    // 12. Pass varyings to fragment
+    // 11. Varyings
+    // Pass pixel-space offset so the fragment shader can evaluate the conic in the correct space.
+    // pixelOffset is already in pixel-space (same space as the 2D covariance conic).
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
-    const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')  // pixel-space offset
-    const vConic = varyingProperty('vec3', 'vConic')               // (c/det, -b/det, a/det)
+    const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')
+    // Conic = inverse 2D covariance: (c/det, -b/det, a/det) where det = a*c - b*b
+    const det = a.mul(c).sub(n(b).mul(b))
+    const detSafe = max(det, float(0.0001))
+    const conicX = c.div(detSafe)
+    const conicY = b.negate().div(detSafe)
+    const conicZ = a.div(detSafe)
+    const vConic = varyingProperty('vec3', 'vConic')
 
     vColor.assign(color)
-    vOpacity.assign(opacity.mul(nearFade).mul(elongFade))  // fade for near + elongated splats
-    vPixelOffset.assign(offset)   // pixel-space quad offset
+    vOpacity.assign(opacity)
+    vPixelOffset.assign(pixelOffset)
     vConic.assign(vec3(conicX, conicY, conicZ))
 
-    // NaN guard: if any component is NaN (NaN != NaN), degenerate the splat
     const hasNaN = finalClip.x.notEqual(finalClip.x)
       .or(finalClip.y.notEqual(finalClip.y))
       .or(finalClip.z.notEqual(finalClip.z))
       .or(finalClip.w.notEqual(finalClip.w))
-    const safeClip = select(hasNaN, vec4(0, 0, 0, 0), finalClip)
 
-    return safeClip
+    return select(hasNaN, vec4(0, 0, 0, 0), finalClip)
   })()
 
   // --- Fragment Shader ---
-  // Evaluate the 2D Gaussian using the conic (inverse covariance matrix).
-  // The pixel-space offset from the splat center is passed as vPixelOffset.
-  // power = -0.5 * (conic.x * dx² + 2 * conic.y * dx * dy + conic.z * dy²)
   material.colorNode = Fn(() => {
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
     const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')
     const vConic = varyingProperty('vec3', 'vConic')
 
-    const dx = vPixelOffset.x
-    const dy = vPixelOffset.y
+    // Conic-based Gaussian evaluation in pixel space.
+    // conic = (a', b', c') = inverse 2D covariance matrix entries:
+    //   conic.x = c/det, conic.y = -b/det, conic.z = a/det
+    // power = -0.5 * (conic.x * dx² + 2 * conic.y * dx * dy + conic.z * dy²)
+    const dx = n(vPixelOffset.x)
+    const dy = n(vPixelOffset.y)
+    const power = vConic.x.mul(dx.mul(dx))
+      .add(float(2.0).mul(vConic.y).mul(dx).mul(dy))
+      .add(vConic.z.mul(dy.mul(dy)))
+      .mul(float(-0.5))
 
-    // Conic Gaussian evaluation (proper elliptical shape)
-    const power = float(-0.5).mul(
-      vConic.x.mul(dx.mul(dx))
-        .add(float(2.0).mul(vConic.y).mul(dx).mul(dy))
-        .add(vConic.z.mul(dy.mul(dy)))
-    )
+    // Discard fragments outside the Gaussian (power < -4 means alpha < ~2%)
+    If(power.lessThan(float(-4.0)), () => { Discard() })
 
-    // Discard fragments outside the 3σ ellipse (power < -4.5 → exp < 0.011)
-    If(power.lessThan(float(-4.5)), () => {
-      Discard()
-    })
+    const alpha = clamp(exp(power).mul(vOpacity), 0.0, 0.99)
+    If(alpha.lessThan(1.0 / 255.0), () => { Discard() })
 
-    const alpha = clamp(vOpacity.mul(exp(power)), 0.0, 0.99)
-
-    // Discard near-transparent fragments
-    If(alpha.lessThan(1.0 / 255.0), () => {
-      Discard()
-    })
-
-    // Premultiplied alpha output
     return vec4(vColor.mul(alpha), alpha)
   })()
 
