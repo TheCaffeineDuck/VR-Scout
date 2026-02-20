@@ -3,71 +3,267 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TSL Gaussian Splat Renderer</title>
+    <title>TSL Gaussian Splat Viewer</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; background: #111; }
-      canvas { display: block; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      canvas { display: block; touch-action: none; }
 
       /* Normal mode: single full-screen canvas */
       body.normal-mode canvas { width: 100%; height: 100%; }
 
       /* Split mode: two canvases side by side */
-      body.split-mode {
-        display: flex;
-        flex-direction: row;
-      }
-      body.split-mode .split-pane {
-        position: relative;
-        width: 50%;
-        height: 100%;
-        flex-shrink: 0;
-      }
-      body.split-mode .split-pane canvas {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
+      body.split-mode { display: flex; flex-direction: row; }
+      body.split-mode .split-pane { position: relative; width: 50%; height: 100%; flex-shrink: 0; }
+      body.split-mode .split-pane canvas { width: 100%; height: 100%; display: block; }
       body.split-mode .split-label {
-        position: absolute;
-        top: 8px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #fff;
-        background: rgba(0,0,0,0.6);
-        font: bold 13px monospace;
-        padding: 4px 10px;
-        border-radius: 4px;
-        pointer-events: none;
-        z-index: 10;
-        white-space: nowrap;
+        position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+        color: #fff; background: rgba(0,0,0,0.6); font: bold 13px monospace;
+        padding: 4px 10px; border-radius: 4px; pointer-events: none; z-index: 10; white-space: nowrap;
       }
       body.split-mode .split-fps {
-        position: absolute;
-        bottom: 8px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #0f0;
-        background: rgba(0,0,0,0.6);
-        font: 12px monospace;
-        padding: 3px 8px;
-        border-radius: 4px;
-        pointer-events: none;
-        z-index: 10;
+        position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+        color: #0f0; background: rgba(0,0,0,0.6); font: 12px monospace;
+        padding: 3px 8px; border-radius: 4px; pointer-events: none; z-index: 10;
       }
       body.split-mode .split-divider {
-        position: fixed;
-        top: 0;
-        left: 50%;
-        width: 2px;
-        height: 100%;
-        background: rgba(255,255,255,0.3);
-        z-index: 20;
+        position: fixed; top: 0; left: 50%; width: 2px; height: 100%;
+        background: rgba(255,255,255,0.3); z-index: 20; pointer-events: none;
+      }
+
+      /* ── Drop zone (initial state — visible when no file loaded) ── */
+      #drop-zone {
+        position: fixed; inset: 0; z-index: 100;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        color: #888; cursor: pointer;
+      }
+      #drop-zone.visible { display: flex; }
+      #drop-zone .drop-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+      #drop-zone .drop-text { font-size: 16px; opacity: 0.6; }
+      #drop-zone .drop-hint { font-size: 12px; opacity: 0.35; margin-top: 8px; }
+
+      /* ── Drag-over overlay ── */
+      #drop-overlay {
+        position: fixed; inset: 0; z-index: 200;
+        display: none; align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.7); border: 3px dashed rgba(255,255,255,0.4);
         pointer-events: none;
+      }
+      #drop-overlay.visible { display: flex; }
+      #drop-overlay .drop-overlay-text { color: #fff; font-size: 20px; opacity: 0.8; }
+
+      /* ── Loading overlay ── */
+      #loading-overlay {
+        position: fixed; inset: 0; z-index: 150;
+        display: none; align-items: center; justify-content: center;
+        background: rgba(17,17,17,0.9);
+      }
+      #loading-overlay.visible { display: flex; }
+      .loading-text { color: #aaa; font-size: 15px; font-family: monospace; }
+
+      /* ── Error overlay ── */
+      #error-overlay {
+        position: fixed; inset: 0; z-index: 300;
+        display: none; align-items: center; justify-content: center;
+        background: rgba(17,17,17,0.85); cursor: pointer;
+      }
+      #error-overlay.visible { display: flex; }
+      .error-box {
+        background: rgba(40,0,0,0.9); border: 1px solid #600;
+        border-radius: 8px; padding: 24px 32px; max-width: 500px; text-align: center;
+      }
+      .error-text { color: #f88; font-size: 14px; line-height: 1.5; }
+      .error-dismiss { color: #666; font-size: 11px; margin-top: 12px; }
+
+      /* ── Filename display ── */
+      #filename-display {
+        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+        color: #555; font-size: 11px; font-family: monospace;
+        pointer-events: none; z-index: 50;
+        opacity: 0; transition: opacity 0.3s;
+      }
+      #filename-display.visible { opacity: 1; }
+
+      /* ── Mode indicator (Orbit / Fly) ── */
+      #mode-indicator {
+        position: fixed; top: 12px; left: 12px;
+        color: #888; background: rgba(0,0,0,0.5); font: 11px monospace;
+        padding: 3px 8px; border-radius: 3px;
+        pointer-events: none; z-index: 50;
+      }
+
+      /* ── Copy link button ── */
+      #copy-link-btn {
+        position: fixed; top: 12px; right: 12px;
+        display: none; background: rgba(255,255,255,0.1); color: #aaa;
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+        font: 11px monospace; padding: 4px 10px; cursor: pointer;
+        z-index: 50; transition: opacity 0.2s;
+      }
+      #copy-link-btn.visible { display: block; }
+      #copy-link-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+      /* ── Control panel ── */
+      #control-panel {
+        position: fixed; bottom: 16px; right: 16px;
+        background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px; z-index: 60; min-width: 200px;
+        opacity: 0.6; transition: opacity 0.2s;
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        display: none;
+      }
+      #control-panel.visible { display: block; }
+      #control-panel:hover { opacity: 1; }
+
+      .panel-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      .panel-title { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+      .panel-toggle {
+        background: none; border: none; color: #888; font-size: 14px;
+        cursor: pointer; padding: 0 4px; line-height: 1;
+      }
+      .panel-toggle:hover { color: #fff; }
+
+      .panel-body { padding: 10px 12px; }
+
+      .panel-row {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .panel-row:last-child { margin-bottom: 0; }
+      .panel-label { color: #777; font-size: 11px; }
+
+      /* Background color buttons */
+      .bg-buttons { display: flex; gap: 4px; }
+      .bg-btn {
+        width: 22px; height: 22px; border-radius: 3px; border: 2px solid transparent;
+        cursor: pointer; transition: border-color 0.15s;
+      }
+      .bg-btn:hover { border-color: rgba(255,255,255,0.3); }
+      .bg-btn.active { border-color: rgba(255,255,255,0.6); }
+
+      /* Grid toggle */
+      .toggle-switch {
+        position: relative; width: 32px; height: 18px;
+        background: rgba(255,255,255,0.1); border-radius: 9px; cursor: pointer;
+        -webkit-appearance: none; appearance: none; border: none; outline: none;
+        transition: background 0.2s;
+      }
+      .toggle-switch:checked { background: rgba(100,180,255,0.5); }
+      .toggle-switch::before {
+        content: ''; position: absolute; top: 2px; left: 2px;
+        width: 14px; height: 14px; background: #ccc; border-radius: 50%;
+        transition: transform 0.15s;
+      }
+      .toggle-switch:checked::before { transform: translateX(14px); background: #fff; }
+
+      /* Budget slider */
+      #budget-slider {
+        width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+        background: rgba(255,255,255,0.12); border-radius: 2px; outline: none;
+        margin-top: 4px;
+      }
+      #budget-slider::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 12px; height: 12px;
+        background: #aaa; border-radius: 50%; cursor: pointer;
+      }
+      #budget-slider::-moz-range-thumb {
+        width: 12px; height: 12px;
+        background: #aaa; border-radius: 50%; cursor: pointer; border: none;
+      }
+
+      /* Info readout */
+      .info-readout {
+        padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.06);
+        pointer-events: none;
+      }
+      .info-row {
+        display: flex; justify-content: space-between;
+        font: 11px monospace; color: #555; line-height: 1.6;
+      }
+      .info-val { color: #888; }
+
+      /* ── Mobile responsive ── */
+      @media (max-width: 600px) {
+        #control-panel {
+          bottom: 0; right: 0; left: 0;
+          border-radius: 8px 8px 0 0; min-width: unset;
+        }
       }
     </style>
   </head>
   <body>
+    <!-- Drop zone (shown when no file loaded) -->
+    <div id="drop-zone">
+      <div class="drop-icon">&#x2B07;</div>
+      <div class="drop-text">Drop a .splat, .ply, or .spz file</div>
+      <div class="drop-hint">or click to browse</div>
+    </div>
+
+    <!-- Drag-over overlay -->
+    <div id="drop-overlay">
+      <div class="drop-overlay-text">Drop .splat, .ply, or .spz file</div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay">
+      <span class="loading-text">Loading...</span>
+    </div>
+
+    <!-- Error overlay -->
+    <div id="error-overlay">
+      <div class="error-box">
+        <div class="error-text"></div>
+        <div class="error-dismiss">Click to dismiss</div>
+      </div>
+    </div>
+
+    <!-- Filename -->
+    <div id="filename-display"></div>
+
+    <!-- Mode indicator -->
+    <div id="mode-indicator">Orbit [F]</div>
+
+    <!-- Copy link button -->
+    <button id="copy-link-btn">Copy Link</button>
+
+    <!-- Control panel -->
+    <div id="control-panel">
+      <div class="panel-header">
+        <span class="panel-title">Controls</span>
+        <button class="panel-toggle">&times;</button>
+      </div>
+      <div class="panel-body">
+        <div class="panel-row">
+          <span class="panel-label">Background</span>
+          <div class="bg-buttons">
+            <button class="bg-btn active" data-color="#111111" style="background:#111111"></button>
+            <button class="bg-btn" data-color="#444444" style="background:#444444"></button>
+            <button class="bg-btn" data-color="#cccccc" style="background:#cccccc"></button>
+          </div>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Grid</span>
+          <input type="checkbox" id="grid-toggle" class="toggle-switch" />
+        </div>
+        <div class="panel-row" style="flex-direction:column; align-items:stretch;">
+          <div style="display:flex; justify-content:space-between;">
+            <span class="panel-label">Budget</span>
+            <span id="budget-label" class="panel-label" style="color:#888;">0</span>
+          </div>
+          <input type="range" id="budget-slider" min="10000" max="100000" value="100000" />
+        </div>
+      </div>
+      <div class="info-readout">
+        <div class="info-row"><span>Splats</span><span id="info-splats" class="info-val">--</span></div>
+        <div class="info-row"><span>Size</span><span id="info-size" class="info-val">--</span></div>
+        <div class="info-row"><span>Format</span><span id="info-format" class="info-val">--</span></div>
+        <div class="info-row"><span>FPS</span><span id="info-fps" class="info-val">--</span></div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

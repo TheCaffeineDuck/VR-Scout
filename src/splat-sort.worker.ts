@@ -13,7 +13,7 @@ let indicesBuffer: Uint32Array | null = null
 let tempIndicesBuffer: Uint32Array | null = null
 
 // 16-bit radix sort (two passes: low 16 bits, high 16 bits)
-// Sorts indices so that distances are in descending order (back-to-front for alpha blending)
+// Sorts indices so that distances are in ascending order (front-to-back for ONE_MINUS_DST_ALPHA blending)
 function radixSort16(indices: Uint32Array, distances: Float32Array, count: number, tempIndices: Uint32Array): void {
   // Since all distances are squared (non-negative), the float bit pattern already
   // maintains the same order as the float value. We can sort by reinterpreted bits.
@@ -24,7 +24,7 @@ function radixSort16(indices: Uint32Array, distances: Float32Array, count: numbe
   const MASK = 0xFFFF
 
   // Two passes: low 16 bits, then high 16 bits
-  // After sorting ascending by distBits, reverse for back-to-front (farthest first)
+  // Sort ascending by distBits → front-to-back (nearest first)
   for (let pass = 0; pass < 2; pass++) {
     const shift = pass * 16
     const count16 = new Int32Array(RADIX)
@@ -53,13 +53,8 @@ function radixSort16(indices: Uint32Array, distances: Float32Array, count: numbe
     indices.set(tempIndices)
   }
 
-  // After two ascending passes the array is sorted ascending (nearest first).
-  // Reverse in-place to get back-to-front (farthest first).
-  for (let lo = 0, hi = count - 1; lo < hi; lo++, hi--) {
-    const tmp = indices[lo]
-    indices[lo] = indices[hi]
-    indices[hi] = tmp
-  }
+  // After two ascending passes the array is sorted ascending (nearest first) = front-to-back.
+  // No reversal needed — front-to-back order for ONE_MINUS_DST_ALPHA blending.
 }
 
 workerSelf.onmessage = (e: MessageEvent) => {
@@ -95,12 +90,11 @@ workerSelf.onmessage = (e: MessageEvent) => {
 
     radixSort16(indices, distances, count, tempIndicesBuffer)
 
-    // Copy sorted indices into a new buffer for zero-copy transfer
-    // (we can't transfer pre-allocated indicesBuffer — it would detach and become unusable)
-    const result = new Uint32Array(count)
-    result.set(indices)
-
-    // Transfer the buffer back zero-copy
-    workerSelf.postMessage({ indices: result }, [result.buffer])
+    // Transfer indicesBuffer directly — zero-copy, no allocation per sort.
+    // After postMessage with transfer, the buffer is detached, so re-allocate for next cycle.
+    indicesBuffer = null
+    workerSelf.postMessage({ indices: indices }, [indices.buffer])
+    // Re-allocate for next sort (cheap: one allocation per frame vs. copy + allocation before)
+    indicesBuffer = new Uint32Array(storedCount)
   }
 }

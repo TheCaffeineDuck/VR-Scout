@@ -27,8 +27,8 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
   material.depthTest = true
   material.blending = THREE.CustomBlending
   material.blendEquation = THREE.AddEquation
-  material.blendSrc = THREE.OneFactor
-  material.blendDst = THREE.OneMinusSrcAlphaFactor
+  material.blendSrc = THREE.OneMinusDstAlphaFactor
+  material.blendDst = THREE.OneFactor
   material.side = THREE.DoubleSide
 
   const viewportUniform = uniform(new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio), 'vec2')
@@ -42,10 +42,8 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     // 1. Resolve splat index
     let splatIndex: any
     if (gpuIndexBuffer) {
-      // GPU sort packs: bits[31:21] = distance key, bits[20:0] = original splat index
-      // Extract lower 21 bits to get the actual splat index
-      const packed = gpuIndexBuffer.element(instanceIndex)
-      splatIndex = packed.bitAnd(uint(0x1FFFFF)).toInt()
+      // Radix sort stores full 32-bit indices (no key packing)
+      splatIndex = gpuIndexBuffer.element(instanceIndex).toInt()
     } else {
       const sortOrderFloat = attribute('sortOrder')
       splatIndex = sortOrderFloat.add(0.5).floor().toInt()
@@ -56,15 +54,15 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const texCoord = ivec2(u, v)
 
     // 2. Fetch attributes
-    const posAndOpacity = textureLoad(data.positionTex, texCoord)
-    const splatPos = posAndOpacity.xyz
-    const opacity = posAndOpacity.w
+    // Opacity lives in colorTex.a (moved from positionTex.w in Phase D2).
+    // positionTex.w is always 0.
+    const posData = textureLoad(data.positionTex, texCoord)
+    const splatPos = posData.xyz
+    const colorAndOpacity = textureLoad(data.colorTex, texCoord)
+    const opacity = colorAndOpacity.w
 
     const scaleVec = textureLoad(data.scaleTex, texCoord).xyz
     const rot = textureLoad(data.rotationTex, texCoord)
-
-    const maxScale = max(max(scaleVec.x, scaleVec.y), scaleVec.z)
-    const tooLargeScale = maxScale.greaterThan(float(2.0))
 
     // 3. Quaternion → Rotation Matrix
     const qw = rot.x, qx = rot.y, qy = rot.z, qz = rot.w
@@ -84,18 +82,18 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const r21 = yz.add(wx).mul(2)
     const r22 = ONE.sub(x2.add(y2).mul(2))
 
-    // 4. 3D Covariance: Σ = R^T * S² * R (CUDA convention: M = S*R, Σ = M^T*M)
-    // Σ[i][j] = Σ_k R[k][i] * S[k]² * R[k][j]
+    // 4. 3D Covariance: Σ = R * S² * R^T (matching CUDA/antimatter15 reference)
+    // Σ[i][j] = Σ_k R[i][k] * S[k]² * R[j][k]
     const sx2 = scaleVec.x.mul(scaleVec.x)
     const sy2 = scaleVec.y.mul(scaleVec.y)
     const sz2 = scaleVec.z.mul(scaleVec.z)
 
-    const cov00 = r00.mul(r00).mul(sx2).add(r10.mul(r10).mul(sy2)).add(r20.mul(r20).mul(sz2))
-    const cov01 = r00.mul(r01).mul(sx2).add(r10.mul(r11).mul(sy2)).add(r20.mul(r21).mul(sz2))
-    const cov02 = r00.mul(r02).mul(sx2).add(r10.mul(r12).mul(sy2)).add(r20.mul(r22).mul(sz2))
-    const cov11 = r01.mul(r01).mul(sx2).add(r11.mul(r11).mul(sy2)).add(r21.mul(r21).mul(sz2))
-    const cov12 = r01.mul(r02).mul(sx2).add(r11.mul(r12).mul(sy2)).add(r21.mul(r22).mul(sz2))
-    const cov22 = r02.mul(r02).mul(sx2).add(r12.mul(r12).mul(sy2)).add(r22.mul(r22).mul(sz2))
+    const cov00 = r00.mul(r00).mul(sx2).add(r01.mul(r01).mul(sy2)).add(r02.mul(r02).mul(sz2))
+    const cov01 = r00.mul(r10).mul(sx2).add(r01.mul(r11).mul(sy2)).add(r02.mul(r12).mul(sz2))
+    const cov02 = r00.mul(r20).mul(sx2).add(r01.mul(r21).mul(sy2)).add(r02.mul(r22).mul(sz2))
+    const cov11 = r10.mul(r10).mul(sx2).add(r11.mul(r11).mul(sy2)).add(r12.mul(r12).mul(sz2))
+    const cov12 = r10.mul(r20).mul(sx2).add(r11.mul(r21).mul(sy2)).add(r12.mul(r22).mul(sz2))
+    const cov22 = r20.mul(r20).mul(sx2).add(r21.mul(r21).mul(sy2)).add(r22.mul(r22).mul(sz2))
 
     // 5. Transform to screen space
     const modelView = cameraViewMatrix.mul(modelWorldMatrix)
@@ -116,7 +114,7 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const tx = clamp(n(viewPos.x), limX.negate(), limX)
     const ty = clamp(n(viewPos.y), limY.negate(), limY)
 
-    // 6. Compute 2D covariance: cov2d = J * W * Vrk * W^T * J^T
+    // 6. Compute 2D covariance: cov2d = T^T * Vrk * T
     //
     // W = upper 3x3 of modelView (world-to-camera rotation)
     const mv = (col: number, comp: string) => n((modelView as any).element(col)[comp])
@@ -124,24 +122,24 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const w10 = mv(0, 'y'), w11 = mv(1, 'y'), w12 = mv(2, 'y')
     const w20 = mv(0, 'z'), w21 = mv(1, 'z'), w22 = mv(2, 'z')
 
-    // Jacobian
-    const j00 = focalX.div(tz)
+    // Jacobian of perspective projection (matching antimatter15/CUDA reference exactly)
+    // antimatter15 uses cam.z (negative), so: J[0][0] = fx/cz = -fx/tz, J[1][1] = -fy/cz = fy/tz
+    // Cross-terms: J[2][0] = -fx*cx/cz² = -fx*tx/tz², J[2][1] = fy*cy/cz² = +fy*ty/tz²
+    // Note the asymmetry: j02 is negative, j12 is positive (y-axis flip built into J[1][1])
+    const j00 = focalX.negate().div(tz)
     const j02 = focalX.negate().mul(tx).div(tz2)
     const j11 = focalY.div(tz)
-    const j12 = focalY.negate().mul(ty).div(tz2)
+    const j12 = focalY.mul(ty).div(tz2)
 
-    // Compute T = W^T * J using scalars (W^T[i][k] = W[k][i])
+    // Compute T = W^T * J (matching antimatter15 reference exactly)
     // T[i][j] = Σ_k W[k][i] * J[k][j]
-    // J only has j00 at [0][0], j11 at [1][1], j02 at [0][2], j12 at [1][2]
-    const t00 = w00.mul(j00)
-    const t01 = w10.mul(j11)
-    const t02 = w00.mul(j02).add(w10.mul(j12))
-    const t10 = w01.mul(j00)
-    const t11 = w11.mul(j11)
-    const t12 = w01.mul(j02).add(w11.mul(j12))
-    const t20 = w02.mul(j00)
-    const t21 = w12.mul(j11)
-    const t22 = w02.mul(j02).add(w12.mul(j12))
+    // J col 0: (j00, 0, j02) and col 1: (0, j11, j12)
+    const t00 = w00.mul(j00).add(w20.mul(j02))
+    const t01 = w10.mul(j11).add(w20.mul(j12))
+    const t10 = w01.mul(j00).add(w21.mul(j02))
+    const t11 = w11.mul(j11).add(w21.mul(j12))
+    const t20 = w02.mul(j00).add(w22.mul(j02))
+    const t21 = w12.mul(j11).add(w22.mul(j12))
 
     // cov2d = T^T * Vrk * T (only need upper-left 2x2)
     // P = Vrk * T (columns 0 and 1 only)
@@ -153,11 +151,12 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const p21 = cov02.mul(t01).add(cov12.mul(t11)).add(cov22.mul(t21))
 
     // cov2d[i][j] = T^T[i][k] * P[k][j] = T[k][i] * P[k][j]
-    const a = t00.mul(p00).add(t10.mul(p10)).add(t20.mul(p20)).add(0.3)
+    // No low-pass filter — antimatter15 reference omits it for sharper output
+    const a = t00.mul(p00).add(t10.mul(p10)).add(t20.mul(p20))
     const b = t00.mul(p01).add(t10.mul(p11)).add(t20.mul(p21))
-    const c = t01.mul(p01).add(t11.mul(p11)).add(t21.mul(p21)).add(0.3)
+    const c = t01.mul(p01).add(t11.mul(p11)).add(t21.mul(p21))
 
-    // 7. Eigendecomposition (antimatter15 formula)
+    // 7. Eigendecomposition
     const mid = a.add(c).mul(0.5)
     const radius = sqrt(max(a.sub(c).mul(0.5).mul(a.sub(c).mul(0.5)).add(n(b).mul(b)), float(0.0001)))
     const lambda1 = mid.add(radius)
@@ -165,8 +164,8 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
 
     const tooSmall = lambda2.lessThan(float(0.0))
 
-    // Use 3*sqrt(λ) for 3-sigma coverage (99.7% of the Gaussian)
-    // This is the correct formulation — NOT sqrt(2λ) which was wrong
+    // Quad sizing: 3*sqrt(λ) for 3-sigma coverage (99.7% of the Gaussian)
+    // quadPos ∈ [-1,1], so total pixel extent = ±1 × 3√λ = ±3√λ from center.
     const diagVec = n(normalize(vec2(b, lambda1.sub(a))))
     const r1 = min(sqrt(max(lambda1, float(0.0001))).mul(3.0), float(1024.0))
     const r2 = min(sqrt(max(lambda2, float(0.0001))).mul(3.0), float(1024.0))
@@ -174,9 +173,13 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const minorAxis = vec2(n(diagVec.y).negate(), diagVec.x).mul(r2)
 
     // 8. Position quad vertex
-    const quadPos = positionGeometry.xy.mul(2.0)
+    // quadPos in [-1,1] — axis lengths already encode the 3σ coverage radius.
+    // No ×2 multiplier: vertex at quadPos=±1 maps to ±3√λ pixels from center.
+    // Fragment discard at power<-4 corresponds to ~2.83σ, well within the quad.
+    const quadPos = positionGeometry.xy
     const pixelOffset = majorAxis.mul(quadPos.x).add(minorAxis.mul(quadPos.y))
 
+    // Standard clip-space positioning: pixel offset → NDC offset × w
     const clipPos = cameraProjectionMatrix.mul(vec4(viewPos, 1.0)).toVar()
     clipPos.x.addAssign(pixelOffset.x.mul(2.0).div(viewportUniform.x).mul(clipPos.w))
     clipPos.y.addAssign(pixelOffset.y.mul(2.0).div(viewportUniform.y).mul(clipPos.w))
@@ -191,14 +194,25 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
       .or(n(centerClip.y).lessThan(clipW.negate()))
       .or(n(centerClip.y).greaterThan(clipW))
 
-    const culled = behindCamera.or(offScreen).or(tooSmall).or(tooLargeScale)
-    const finalClip = select(culled, vec4(0, 0, 0, 0), clipPos)
+    const culled = behindCamera.or(offScreen).or(tooSmall)
+    // Degenerate w=0 → GPU discards the primitive (NaN in perspective divide).
+    // All quad vertices collapse to the same degenerate point → zero-area triangle.
+    const CULLED_POS = vec4(0, 0, 0, 0)
+    const finalClip = select(culled, CULLED_POS, clipPos)
 
-    // 10. Color
+    // 10. Color — apply near-plane depth fade (antimatter15 reference)
+    // antimatter15 (WebGL, z_ndc ∈ [-1,1]): clamp(z_ndc + 1, 0, 1)
+    //   → fades near-half of frustum (z_ndc from -1 to 0)
+    // WebGPU (z_ndc ∈ [0,1]): equivalent is clamp(z_ndc * 2, 0, 1)
+    //   → fades near-half of frustum (z_ndc from 0 to 0.5)
+    // This prevents foreground blob artifacts when camera is inside splat volume.
+    const zNdc = n(centerClip.z).div(n(centerClip.w))
+    const depthFade = clamp(zNdc.mul(2.0), 0.0, 1.0)
+
     let color: Node
     if (data.hasSH1 && data.sh1RTex && data.sh1GTex && data.sh1BTex) {
       const SH_C1 = float(0.4886025119029199)
-      const baseColor = textureLoad(data.colorTex, texCoord).rgb
+      const baseColor = colorAndOpacity.rgb
       const sh1R = textureLoad(data.sh1RTex, texCoord).rgb
       const sh1G = textureLoad(data.sh1GTex, texCoord).rgb
       const sh1B = textureLoad(data.sh1BTex, texCoord).rgb
@@ -207,14 +221,13 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
       const sh1ContribR = SH_C1.mul(sh1R.x.mul(dir.y).add(sh1R.y.mul(dir.z)).add(sh1R.z.mul(dir.x)))
       const sh1ContribG = SH_C1.mul(sh1G.x.mul(dir.y).add(sh1G.y.mul(dir.z)).add(sh1G.z.mul(dir.x)))
       const sh1ContribB = SH_C1.mul(sh1B.x.mul(dir.y).add(sh1B.y.mul(dir.z)).add(sh1B.z.mul(dir.x)))
-      color = vec3(max(ZERO, n(baseColor.r).add(sh1ContribR)), max(ZERO, n(baseColor.g).add(sh1ContribG)), max(ZERO, n(baseColor.b).add(sh1ContribB)))
+      const sh1Color = vec3(max(ZERO, n(baseColor.r).add(sh1ContribR)), max(ZERO, n(baseColor.g).add(sh1ContribG)), max(ZERO, n(baseColor.b).add(sh1ContribB)))
+      color = sh1Color.mul(depthFade)
     } else {
-      color = textureLoad(data.colorTex, texCoord).rgb
+      color = colorAndOpacity.rgb.mul(depthFade)
     }
 
-    // 11. Varyings
-    // Pass pixel-space offset so the fragment shader can evaluate the conic in the correct space.
-    // pixelOffset is already in pixel-space (same space as the 2D covariance conic).
+    // 11. Varyings — pass pixel offset and conic for fragment shader Gaussian evaluation
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
     const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')
@@ -227,7 +240,8 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
     const vConic = varyingProperty('vec3', 'vConic')
 
     vColor.assign(color)
-    vOpacity.assign(opacity)
+    // antimatter15 applies depthFade to full RGBA — opacity is also faded for near-plane splats
+    vOpacity.assign(opacity.mul(depthFade))
     vPixelOffset.assign(pixelOffset)
     vConic.assign(vec3(conicX, conicY, conicZ))
 
@@ -236,19 +250,18 @@ export function createSplatMaterial(data: SplatData, options?: SplatMaterialOpti
       .or(finalClip.z.notEqual(finalClip.z))
       .or(finalClip.w.notEqual(finalClip.w))
 
-    return select(hasNaN, vec4(0, 0, 0, 0), finalClip)
+    return select(hasNaN, CULLED_POS, finalClip)
   })()
 
   // --- Fragment Shader ---
+  // Conic-based Gaussian evaluation in pixel space.
+  // The conic (inverse 2D covariance) and pixel offset are interpolated from the vertex shader.
   material.colorNode = Fn(() => {
     const vColor = varyingProperty('vec3', 'vColor')
     const vOpacity = varyingProperty('float', 'vOpacity')
     const vPixelOffset = varyingProperty('vec2', 'vPixelOffset')
     const vConic = varyingProperty('vec3', 'vConic')
 
-    // Conic-based Gaussian evaluation in pixel space.
-    // conic = (a', b', c') = inverse 2D covariance matrix entries:
-    //   conic.x = c/det, conic.y = -b/det, conic.z = a/det
     // power = -0.5 * (conic.x * dx² + 2 * conic.y * dx * dy + conic.z * dy²)
     const dx = n(vPixelOffset.x)
     const dy = n(vPixelOffset.y)

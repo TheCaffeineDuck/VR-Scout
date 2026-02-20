@@ -22,13 +22,14 @@ export class SplatData {
 
     const texelCount = this.width * this.height
 
-    // Position + Opacity: (pos.x, pos.y, pos.z, opacity)
+    // Position: (pos.x, pos.y, pos.z, 0) — full float32 for position precision.
+    // Opacity has moved to colorTex.a.
     const posData = new Float32Array(texelCount * 4)
     for (let i = 0; i < parsed.count; i++) {
-      posData[i * 4] = parsed.positions[i * 3]
+      posData[i * 4]     = parsed.positions[i * 3]
       posData[i * 4 + 1] = parsed.positions[i * 3 + 1]
       posData[i * 4 + 2] = parsed.positions[i * 3 + 2]
-      posData[i * 4 + 3] = parsed.opacities[i]
+      posData[i * 4 + 3] = 0
     }
     this.positionTex = this.makeTexture(posData)
 
@@ -51,12 +52,16 @@ export class SplatData {
     }
     this.rotationTex = this.makeTexture(rotData)
 
-    // Color: (r, g, b, 0)
+    // Color + Opacity: (r, g, b, opacity) — float32 for reliable textureLoad() support.
+    // Opacity lives in .a (moved from positionTex.a in Phase D2).
+    // HalfFloatType was tried but Three.js does not auto-convert Float32Array → fp16
+    // for DataTexture on WebGPU, resulting in corrupted color reads (green blobs).
     const colorData = new Float32Array(texelCount * 4)
     for (let i = 0; i < parsed.count; i++) {
-      colorData[i * 4] = parsed.colors[i * 3]
+      colorData[i * 4]     = parsed.colors[i * 3]
       colorData[i * 4 + 1] = parsed.colors[i * 3 + 1]
       colorData[i * 4 + 2] = parsed.colors[i * 3 + 2]
+      colorData[i * 4 + 3] = parsed.opacities[i]  // opacity in .a
     }
     this.colorTex = this.makeTexture(colorData)
 
