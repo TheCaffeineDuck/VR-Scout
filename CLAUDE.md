@@ -667,7 +667,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Prints pass/fail for each check
 - Exit code 0 if all pass, 1 if any fail
 **Validation:** Script runs on test .glb files and reports results.
-- [ ] Complete
+- [x] Complete
 
 #### Task 2.4: Progressive LOD Loading
 **Files to create:** src/hooks/useScene.ts (expand or create)
