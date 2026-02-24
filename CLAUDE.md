@@ -641,7 +641,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Usage: `python convert_scene.py input.off output.glb --draco`
 - `requirements.txt`: trimesh, pygltflib, numpy
 **Validation:** Script runs without errors on a test .off file. Output .glb loads in Three.js.
-- [ ] Complete
+- [x] Complete
 
 #### Task 2.2: generate_lod.py Script
 **Files to create:** scripts/generate_lod.py
