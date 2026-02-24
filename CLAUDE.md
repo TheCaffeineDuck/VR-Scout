@@ -656,7 +656,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Output naming: `{base}_preview.glb`, `{base}_medium.glb`, `{base}_high.glb`
 - All outputs have Draco compression
 **Validation:** Script produces three .glb files of decreasing size.
-- [ ] Complete
+- [x] Complete
 
 #### Task 2.3: validate_scene.py Script
 **Files to create:** scripts/validate_scene.py
