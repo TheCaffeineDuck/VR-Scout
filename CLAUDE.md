@@ -547,7 +547,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Copy Draco WASM decoder files to `public/draco/` (from three/examples/jsm/libs/draco/gltf/)
 - Copy KTX2/Basis transcoder files to `public/basis/` (from three/examples/jsm/libs/basis/)
 **Validation:** `tsc --noEmit` passes
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.5: WebGPU Renderer Setup
 **Files to create:** src/lib/renderer.ts
