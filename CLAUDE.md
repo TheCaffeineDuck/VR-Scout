@@ -615,14 +615,14 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `LoadingOverlay.tsx`: Full-screen overlay showing loading progress (percentage from scene loader onProgress callback). Shows current LOD stage later. Dismisses when scene is loaded.
 - `ErrorBoundary.tsx`: React error boundary wrapping the 3D viewer. Catches Three.js / R3F errors gracefully. Shows friendly error message with retry button.
 **Validation:** Loading overlay appears when loading a scene. Error boundary catches errors without crashing app.
-- [ ] Complete
+- [x] Complete
 
 #### Phase 1 Exit Criteria
-- [ ] Triangle mesh scene renders in browser
-- [ ] 60+ FPS on desktop (check with stats-gl or browser DevTools)
-- [ ] Desktop navigation working (WASD + mouse look)
-- [ ] WebXR "Enter VR" button present and functional
-- [ ] `tsc --noEmit && npx vite build` passes with zero errors
+- [x] Triangle mesh scene renders in browser
+- [x] 60+ FPS on desktop (check with stats-gl or browser DevTools)
+- [x] Desktop navigation working (WASD + mouse look)
+- [x] WebXR "Enter VR" button present and functional
+- [x] `tsc --noEmit && npx vite build` passes with zero errors
 
 ---
 

@@ -1,11 +1,13 @@
 import { ViewerShell } from '@/components/viewer/ViewerShell'
 import { SceneRenderer } from '@/components/viewer/SceneRenderer'
 import { EnvironmentPanel } from '@/components/viewer/EnvironmentSettings'
+import { LoadingOverlay } from '@/components/viewer/LoadingOverlay'
+import { ErrorBoundary } from '@/components/viewer/ErrorBoundary'
 import { enterVR } from '@/hooks/useXRSession'
 
 export default function App() {
   return (
-    <>
+    <ErrorBoundary>
       <ViewerShell>
         <SceneRenderer />
         {/* Placeholder cube visible when no scene is loaded */}
@@ -14,6 +16,7 @@ export default function App() {
           <meshStandardMaterial color="#4f46e5" />
         </mesh>
       </ViewerShell>
+      <LoadingOverlay />
       <EnvironmentPanel />
       <button
         onClick={enterVR}
@@ -21,6 +24,6 @@ export default function App() {
       >
         Enter VR
       </button>
-    </>
+    </ErrorBoundary>
   )
 }
