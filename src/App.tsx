@@ -1,6 +1,7 @@
 import { ViewerShell } from '@/components/viewer/ViewerShell'
 import { SceneRenderer } from '@/components/viewer/SceneRenderer'
 import { EnvironmentPanel } from '@/components/viewer/EnvironmentSettings'
+import { enterVR } from '@/hooks/useXRSession'
 
 export default function App() {
   return (
@@ -14,6 +15,12 @@ export default function App() {
         </mesh>
       </ViewerShell>
       <EnvironmentPanel />
+      <button
+        onClick={enterVR}
+        className="fixed bottom-4 right-4 z-50 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-lg"
+      >
+        Enter VR
+      </button>
     </>
   )
 }

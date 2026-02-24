@@ -606,7 +606,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Add "Enter VR" button to UI (use drei's or xr's built-in VR button)
 - Ensure stereo rendering works with the standard mesh scene
 **Validation:** "Enter VR" button appears. If a VR headset is connected, clicking it enters immersive VR mode. On desktop without headset, button appears but session fails gracefully.
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.10: Loading Overlay + Error Boundary
 **Files to create:** src/components/viewer/LoadingOverlay.tsx, src/components/viewer/ErrorBoundary.tsx
