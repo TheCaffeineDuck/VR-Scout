@@ -4,7 +4,10 @@ import * as THREE from 'three'
  * Creates a WebGPU renderer with WebGL fallback.
  * Designed to be passed to R3F Canvas `gl` prop as an async factory.
  */
-export async function createRenderer(canvas: HTMLCanvasElement) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function createRenderer(props: any) {
+  const canvas = props.canvas as HTMLCanvasElement
+
   if (navigator.gpu) {
     try {
       const { WebGPURenderer } = await import('three/webgpu')

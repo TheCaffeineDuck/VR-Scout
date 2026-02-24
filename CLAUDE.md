@@ -568,7 +568,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Wire up in App.tsx so it renders ViewerShell with SceneRenderer inside.
 - For testing, use any .glb file (even a simple test cube). Place it in `public/scenes/`.
 **Validation:** Dev server shows 3D scene in browser. `tsc --noEmit` passes.
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.7: First-Person Controls
 **Files to create:** src/components/controls/FirstPersonControls.tsx
