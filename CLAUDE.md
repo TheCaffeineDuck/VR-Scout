@@ -557,7 +557,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - NOTE: React Three Fiber v9+ may handle renderer creation differently. Check R3F docs for WebGPU integration. The `createRenderer` function may need to be passed to R3F's Canvas `gl` prop or used via `frameloop` customization.
 - If R3F doesn't support WebGPURenderer directly yet, use WebGLRenderer as fallback — the meshes are standard and work with both.
 **Validation:** `tsc --noEmit` passes
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.6: ViewerShell + SceneRenderer
 **Files to create:** src/components/viewer/ViewerShell.tsx, src/components/viewer/SceneRenderer.tsx
