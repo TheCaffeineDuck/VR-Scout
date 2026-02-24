@@ -692,7 +692,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Click to load scene via useScene hook
 - Later phases will connect this to Firestore
 **Validation:** Can browse and switch between multiple .glb scenes.
-- [ ] Complete
+- [x] Complete
 
 #### Task 2.6: Performance Monitoring
 **Files to read:** src/components/viewer/ViewerShell.tsx

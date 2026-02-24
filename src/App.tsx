@@ -4,6 +4,7 @@ import { SceneRenderer } from '@/components/viewer/SceneRenderer'
 import { EnvironmentPanel } from '@/components/viewer/EnvironmentSettings'
 import { LoadingOverlay } from '@/components/viewer/LoadingOverlay'
 import { ErrorBoundary } from '@/components/viewer/ErrorBoundary'
+import { SceneSelector } from '@/components/viewer/SceneSelector'
 import { enterVR } from '@/hooks/useXRSession'
 import { useViewerStore } from '@/stores/viewer-store'
 
@@ -12,8 +13,7 @@ export default function App() {
   const sceneLOD = useViewerStore((s) => s.sceneLOD)
   const sceneUrl = useViewerStore((s) => s.sceneUrl)
 
-  // Auto-load room scene with progressive LODs for testing
-  // This will be replaced by SceneSelector in Task 2.5
+  // Auto-load default scene on first mount
   useEffect(() => {
     if (!sceneLOD && !sceneUrl) {
       setSceneLOD({
@@ -30,6 +30,7 @@ export default function App() {
         <SceneRenderer />
       </ViewerShell>
       <LoadingOverlay />
+      <SceneSelector />
       <EnvironmentPanel />
       <button
         onClick={enterVR}
