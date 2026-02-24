@@ -581,7 +581,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Click on canvas to engage pointer lock
 - ESC to release
 **Validation:** Can navigate around the scene with WASD + mouse. Movement feels smooth.
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.8: Environment System
 **Files to create:** src/components/viewer/EnvironmentSettings.tsx
