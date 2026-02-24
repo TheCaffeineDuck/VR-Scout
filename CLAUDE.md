@@ -594,7 +594,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Store selected preset and settings in viewer-store
 - Simple UI panel (Tailwind styled) that toggles open/closed
 **Validation:** Can switch HDRI environments. Lighting controls work. Scene appearance changes.
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.9: WebXR Session Support
 **Files to create:** src/components/controls/VRControls.tsx, src/hooks/useXRSession.ts

@@ -3,6 +3,7 @@ import { type ReactNode, Suspense } from 'react'
 import { createRenderer } from '@/lib/renderer'
 import { useViewerStore } from '@/stores/viewer-store'
 import { FirstPersonControls } from '@/components/controls/FirstPersonControls'
+import { EnvironmentLighting } from '@/components/viewer/EnvironmentSettings'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -18,8 +19,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
         camera={{ position: [0, 1.6, 5], fov: 75, near: 0.1, far: 1000 }}
       >
         <Suspense fallback={null}>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} intensity={1} />
+          <EnvironmentLighting />
           {showGrid && <gridHelper args={[50, 50, '#444', '#222']} />}
           <FirstPersonControls />
           {children}
