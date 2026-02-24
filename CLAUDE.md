@@ -680,7 +680,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Updates viewer-store with current LOD level
 - Loading overlay shows which LOD is being loaded
 **Validation:** Scene loads in two stages — fast preview, then quality swap. No visual glitch during swap.
-- [ ] Complete
+- [x] Complete
 
 #### Task 2.5: Scene Selector UI
 **Files to create:** src/components/viewer/SceneSelector.tsx
