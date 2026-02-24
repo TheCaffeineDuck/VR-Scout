@@ -7,6 +7,7 @@ import { FirstPersonControls } from '@/components/controls/FirstPersonControls'
 import { VRControls } from '@/components/controls/VRControls'
 import { EnvironmentLighting } from '@/components/viewer/EnvironmentSettings'
 import { xrStore } from '@/hooks/useXRSession'
+import { PerformanceStats } from '@/components/viewer/PerformanceMonitor'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -27,6 +28,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             {showGrid && <gridHelper args={[50, 50, '#444', '#222']} />}
             <FirstPersonControls />
             <VRControls />
+            <PerformanceStats />
             {children}
           </Suspense>
         </XR>

@@ -702,13 +702,13 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Show FPS, draw calls, triangle count, memory usage
 - Add adaptive quality: if FPS drops below 30 for 3+ seconds, suggest switching to lower LOD
 **Validation:** Stats overlay shows real-time FPS. Adaptive quality suggestion works.
-- [ ] Complete
+- [x] Complete
 
 #### Phase 2 Exit Criteria
-- [ ] Python scripts work: .off → .glb conversion, LOD generation, validation
-- [ ] Progressive LOD loading works (instant preview → seamless high-quality swap)
-- [ ] Multiple scenes loadable and switchable via UI
-- [ ] Performance monitoring visible
+- [x] Python scripts work: .off → .glb conversion, LOD generation, validation
+- [x] Progressive LOD loading works (instant preview → seamless high-quality swap)
+- [x] Multiple scenes loadable and switchable via UI
+- [x] Performance monitoring visible
 
 ---
 
