@@ -536,7 +536,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `tool-store.ts`: Active tool (default: 'navigate'), measurement unit, laser active state, sun time/date, tool settings
 - `session-store.ts`: Current session, participants list, is-collaborative flag, connection status
 **Validation:** `tsc --noEmit` passes
-- [ ] Complete
+- [x] Complete
 
 #### Task 1.4: Scene Loader Library
 **Files to create:** src/lib/scene-loader.ts, src/lib/formats.ts
