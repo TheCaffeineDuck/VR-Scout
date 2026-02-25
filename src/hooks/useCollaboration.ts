@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useSessionStore } from '@/stores/session-store'
+import { useParticipantPresenceStore } from '@/stores/participant-store'
 import type { Participant } from '@/types/session'
 import {
   type CollaborationSession,
@@ -33,6 +34,13 @@ export function useCollaboration() {
     setConnectionStatus,
   } = useSessionStore()
 
+  const {
+    setRemoteParticipant,
+    updateRemoteParticipant,
+    removeRemoteParticipant,
+    clearRemoteParticipants,
+  } = useParticipantPresenceStore()
+
   const eventListenerRef = useRef<((event: CollaborationEvent) => void) | null>(null)
 
   // Handle incoming collaboration events
@@ -50,10 +58,24 @@ export function useCollaboration() {
             joinedAt: new Date(),
           }
           addParticipant(p)
+          setRemoteParticipant(event.participant.uid, {
+            displayName: event.participant.displayName,
+            avatarColor: event.participant.avatarColor,
+            device: event.participant.device,
+            position: event.participant.position,
+            rotation: event.participant.rotation,
+            activeTool: event.participant.activeTool,
+            laserTarget: event.participant.laserTarget,
+            isSpeaking: event.participant.isSpeaking,
+          })
           break
         }
         case 'participant-left':
           removeParticipant(event.uid)
+          removeRemoteParticipant(event.uid)
+          break
+        case 'participant-updated':
+          updateRemoteParticipant(event.uid, event.updates)
           break
       }
     }
@@ -66,7 +88,7 @@ export function useCollaboration() {
         activeSession.off(eventListenerRef.current)
       }
     }
-  }, [addParticipant, removeParticipant])
+  }, [addParticipant, removeParticipant, setRemoteParticipant, updateRemoteParticipant, removeRemoteParticipant])
 
   const createSession = useCallback(
     async (displayName: string, sessionName?: string) => {
@@ -180,7 +202,8 @@ export function useCollaboration() {
     setParticipants([])
     setIsCollaborative(false)
     setConnectionStatus('disconnected')
-  }, [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus])
+    clearRemoteParticipants()
+  }, [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus, clearRemoteParticipants])
 
   // Broadcast helpers
   const broadcastPosition = useCallback(
