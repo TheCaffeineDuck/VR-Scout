@@ -11,6 +11,7 @@ import { PerformanceStats } from '@/components/viewer/PerformanceMonitor'
 import { MeasurementTool } from '@/components/tools/MeasurementTool'
 import { AnnotationTool } from '@/components/tools/AnnotationTool'
 import { CameraManager } from '@/components/camera-system/CameraManager'
+import { ScreenshotCapture } from '@/components/tools/ScreenshotTool'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -35,6 +36,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <MeasurementTool />
             <AnnotationTool />
             <CameraManager />
+            <ScreenshotCapture />
             {children}
           </Suspense>
         </XR>
