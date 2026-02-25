@@ -153,6 +153,8 @@ export async function createCollaborativeSession(
 
   function emit(event: CollaborationEvent) {
     listeners.forEach((fn) => fn(event))
+    // Also dispatch as CustomEvent for SharedToolSync bridge
+    window.dispatchEvent(new CustomEvent('collab-event', { detail: event }))
   }
 
   return {

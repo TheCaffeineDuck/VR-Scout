@@ -17,6 +17,7 @@ import { FloorPlanTracker } from '@/components/tools/FloorPlanOverlay'
 import { LaserPointer } from '@/components/tools/LaserPointer'
 import { ParticipantAvatars } from '@/components/collaboration/ParticipantAvatars'
 import { PositionBroadcaster } from '@/components/collaboration/PositionBroadcaster'
+import { SharedCursor } from '@/components/collaboration/SharedCursor'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -47,6 +48,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <LaserPointer />
             <ParticipantAvatars />
             <PositionBroadcaster />
+            <SharedCursor />
             {children}
           </Suspense>
         </XR>

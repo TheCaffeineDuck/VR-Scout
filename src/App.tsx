@@ -15,6 +15,7 @@ import { ScreenshotButton } from '@/components/tools/ScreenshotTool'
 import { ComparisonViewer } from '@/components/comparison/ComparisonViewer'
 import { SessionManager } from '@/components/collaboration/SessionManager'
 import { ParticipantList } from '@/components/collaboration/ParticipantList'
+import { SharedToolSync } from '@/components/collaboration/SharedToolSync'
 import { enterVR } from '@/hooks/useXRSession'
 import { useViewerStore } from '@/stores/viewer-store'
 import { useToolStore } from '@/stores/tool-store'
@@ -53,6 +54,7 @@ export default function App() {
       {/* Collaboration */}
       <SessionManager />
       <ParticipantList />
+      <SharedToolSync />
 
       {/* Overlays */}
       <LoadingOverlay />
