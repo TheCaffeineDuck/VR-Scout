@@ -1028,7 +1028,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Gate features based on subscription tier
 - Free trial support
 **Validation:** Can initiate Stripe checkout. Webhook processes subscription events.
-- [ ] Complete
+- [x] Complete
 
 #### Task 6.2: VR Dashboard
 **Files to create:** src/components/dashboard/ (multiple files)
@@ -1040,7 +1040,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Scene upload workflow (drag & drop .glb → upload to R2 → create tour)
 - Tour publishing flow (QC must pass before publish)
 **Validation:** Full tour lifecycle manageable from dashboard. QC enforced before publishing.
-- [ ] Complete
+- [x] Complete
 
 #### Task 6.3: Test Suites
 **Files to create:** tests/unit/*.test.ts, tests/e2e/*.spec.ts, vitest.config.ts, playwright.config.ts
@@ -1051,7 +1051,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Target 60%+ code coverage
 - FPS benchmarking test (load scene, measure frame rate over 10 seconds)
 **Validation:** `npm run test` passes. Coverage report shows 60%+.
-- [ ] Complete
+- [x] Complete
 
 #### Task 6.4: Performance Optimization
 **Files to read:** Performance-critical components
@@ -1064,7 +1064,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Image/asset optimization
 - Verify all performance targets from Performance Targets section
 **Validation:** All performance targets met. FPS stable in VR.
-- [ ] Complete
+- [x] Complete
 
 #### Task 6.5: i18n (English + Thai)
 **Files to create:** src/i18n/ directory, translation files
@@ -1075,7 +1075,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Language selector in settings
 - Annotation titles/descriptions support EN/TH bilingual fields
 **Validation:** Can switch between English and Thai. All visible strings translated.
-- [ ] Complete
+- [x] Complete
 
 #### Task 6.6: Accessibility
 **Files to read:** UI components
@@ -1086,16 +1086,16 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - High contrast mode option
 - Focus indicators
 **Validation:** Can navigate all UI with keyboard only. Screen reader announces elements correctly.
-- [ ] Complete
+- [x] Complete
 
 #### Phase 6 Exit Criteria
-- [ ] Subscription flow complete (free trial → paid)
-- [ ] QC checklist enforced before tour publishing
-- [ ] 60%+ test coverage
-- [ ] All performance targets met
-- [ ] Cross-device compatibility verified
-- [ ] i18n working for EN and TH
-- [ ] Accessibility basics covered
+- [x] Subscription flow complete (free trial → paid)
+- [x] QC checklist enforced before tour publishing
+- [x] 60%+ test coverage
+- [x] All performance targets met
+- [x] Cross-device compatibility verified
+- [x] i18n working for EN and TH
+- [x] Accessibility basics covered
 
 ---
 
