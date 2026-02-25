@@ -10,6 +10,7 @@ import { xrStore } from '@/hooks/useXRSession'
 import { PerformanceStats } from '@/components/viewer/PerformanceMonitor'
 import { MeasurementTool } from '@/components/tools/MeasurementTool'
 import { AnnotationTool } from '@/components/tools/AnnotationTool'
+import { CameraManager } from '@/components/camera-system/CameraManager'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -33,6 +34,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <PerformanceStats />
             <MeasurementTool />
             <AnnotationTool />
+            <CameraManager />
             {children}
           </Suspense>
         </XR>
