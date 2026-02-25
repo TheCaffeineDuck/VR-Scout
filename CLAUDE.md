@@ -725,7 +725,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Export helper function `raycastScene(raycaster, scene)` that uses BVH for fast intersection
 - This is the foundation for measurement tool, annotation placement, and teleportation
 **Validation:** Raycasting returns intersection points on scene geometry. Verify with console.log on click.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.2: Measurement Tool
 **Files to create:** src/components/tools/MeasurementTool.tsx, src/hooks/useMeasurement.ts
@@ -738,7 +738,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Visual: thin line with floating distance text label at midpoint
 - VR mode: use controller ray + trigger to place points
 **Validation:** Can measure distances between two points on the scene. Distance label shows correctly.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.3: Annotation System
 **Files to create:** src/components/tools/AnnotationTool.tsx, src/components/tools/AnnotationMarker.tsx, src/hooks/useAnnotations.ts
@@ -750,7 +750,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - All annotations placed via BVH raycasting
 - For now, stored in local Zustand state. Firestore persistence comes in Phase 5.
 **Validation:** Can place annotations of different types on scene geometry. Markers visible and clickable.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.4: Virtual Camera System
 **Files to create:** src/components/camera-system/VirtualCameraObject.tsx, src/components/camera-system/FloatingMonitor.tsx, src/components/camera-system/LensRadialMenu.tsx, src/components/camera-system/CameraManager.tsx, src/components/camera-system/CameraSpawnMenu.tsx, src/hooks/useVirtualCamera.ts
@@ -763,7 +763,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `LensRadialMenu.tsx`: Radial menu for lens selection. Shows all 6 cinema lenses. Changes the virtual camera's FOV.
 - `CameraSpawnMenu.tsx`: UI to spawn a new camera (button in toolbar). Max 3 cameras enforced.
 **Validation:** Can spawn a virtual camera, see its viewpoint on a floating monitor, change lenses, reposition it.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.5: Screenshot Tool
 **Files to create:** src/components/tools/ScreenshotTool.tsx, src/lib/screenshot.ts
@@ -772,7 +772,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `screenshot.ts`: Capture canvas as image. Embed EXIF metadata (using a library like exifr or piexifjs): location ID, lens focal length, camera position/rotation, timestamp, GPS coordinates.
 - `ScreenshotTool.tsx`: Button to capture current view or a specific virtual camera's view. File naming: `LOC-{location_id}_{lens}mm_{YYYY-MM-DD}_{sequence}.jpg`. Download to user's device. Show flash effect on capture.
 **Validation:** Screenshot captures and downloads with correct filename. EXIF metadata present.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.6: Sun-Path Simulator
 **Files to create:** src/components/tools/SunPathSimulator.tsx, src/hooks/useSunPath.ts
@@ -782,7 +782,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `useSunPath.ts`: Given GPS coordinates + date + time, compute sun azimuth and altitude using suncalc. Compute light color temperature based on sun altitude.
 - `SunPathSimulator.tsx`: Time-of-day slider (sunrise → sunset). Date picker for seasonal variation. Golden hour quick-jump buttons (morning golden hour, evening golden hour). 3D sun indicator (bright sphere in sky at sun position). Compass overlay showing N/S/E/W. Directional light automatically tracks sun position and color temperature.
 **Validation:** Moving time slider changes lighting direction and color. Sun indicator moves across sky.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.7: Floor Plan Overlay
 **Files to create:** src/components/tools/FloorPlanOverlay.tsx
@@ -795,7 +795,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Click on minimap to teleport to that position in 3D
 - Toggle-able visibility
 **Validation:** Minimap shows with user position dot. Position updates as user moves. Click to teleport works.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.8: Location Comparison Viewer
 **Files to create:** src/components/comparison/ComparisonViewer.tsx
@@ -808,7 +808,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Quick-swap button to switch which scene is on which side
 - Uses two R3F Canvas instances or a split viewport approach
 **Validation:** Two scenes render side by side. Independent navigation works. Sync toggle works.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.9: Laser Pointer
 **Files to create:** src/components/tools/LaserPointer.tsx
@@ -822,7 +822,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Visible to all users (collaboration sync comes in Phase 4)
 - For now, single-user only
 **Validation:** Holding L shows laser beam to scene surface. Glow dot appears at hit point.
-- [ ] Complete
+- [x] Complete
 
 #### Task 3.10: Desktop Toolbar
 **Files to create:** src/components/ui/Toolbar.tsx
@@ -834,15 +834,15 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Keyboard shortcuts (1-9 for tools)
 - Settings button opens SettingsPanel
 **Validation:** All tools selectable from toolbar. Active tool visually indicated. Keyboard shortcuts work.
-- [ ] Complete
+- [x] Complete
 
 #### Phase 3 Exit Criteria
-- [ ] All tools functional in desktop mode
-- [ ] Measurement accuracy reasonable on test scenes
-- [ ] Virtual camera render-to-texture working
-- [ ] Screenshot metadata matches specification
-- [ ] Sun path simulation changes lighting realistically
-- [ ] Toolbar provides access to all tools
+- [x] All tools functional in desktop mode
+- [x] Measurement accuracy reasonable on test scenes
+- [x] Virtual camera render-to-texture working
+- [x] Screenshot metadata matches specification
+- [x] Sun path simulation changes lighting realistically
+- [x] Toolbar provides access to all tools
 
 ---
 
