@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
 import { loadScene, disposeScene } from '@/lib/scene-loader'
+import { buildSceneBVH, disposeSceneBVH } from '@/lib/raycaster'
 import { useViewerStore } from '@/stores/viewer-store'
 import type { SceneLOD } from '@/types/scene'
 import type { LODLevel } from '@/stores/viewer-store'
@@ -49,16 +50,24 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
         while (groupRef.current.children.length > 0) {
           const child = groupRef.current.children[0]
           groupRef.current.remove(child)
-          if (child instanceof THREE.Group) disposeScene(child)
+          if (child instanceof THREE.Group) {
+            disposeSceneBVH(child)
+            disposeScene(child)
+          }
         }
         groupRef.current.add(scene)
       }
 
       // Dispose previous scene ref
       if (currentSceneRef.current && currentSceneRef.current !== scene) {
+        disposeSceneBVH(currentSceneRef.current)
         disposeScene(currentSceneRef.current)
       }
       currentSceneRef.current = scene
+
+      // Build BVH acceleration structure for raycasting
+      buildSceneBVH(scene)
+
       setSceneGroup(scene)
     },
     [camera, groupRef, setSceneBounds, setSceneGroup],
