@@ -926,7 +926,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Environment variables for Firebase config (API key, project ID, etc.)
 - Create `.env.local.example` with required variable names
 **Validation:** Firebase initializes without errors.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.2: Authentication
 **Files to create:** src/hooks/useAuth.ts, src/components/ui/AuthGate.tsx
@@ -936,7 +936,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `AuthGate.tsx`: Wrapper component that requires authentication. Shows sign-in form if not authenticated. Passes user context to children.
 - Wire into App.tsx — viewer requires authentication
 **Validation:** Can sign in, see user info, sign out. Viewer requires auth.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.3: Tour CRUD
 **Files to create:** src/lib/firestore/tours.ts
@@ -948,7 +948,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Includes QC checklist update function
 - Publish function (validates QC checklist is complete)
 **Validation:** Can create, read, update, delete tours in Firestore.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.4: Annotation Persistence
 **Files to create:** src/lib/firestore/annotations.ts
@@ -959,7 +959,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Update useAnnotations hook to load from / save to Firestore
 - Real-time listener for annotation changes (Firestore onSnapshot)
 **Validation:** Annotations persist across page reloads. Real-time sync between tabs.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.5: Session Persistence
 **Files to create:** src/lib/firestore/sessions.ts
@@ -970,7 +970,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Track participants, session status, access codes
 - Auto-end sessions when host leaves or after inactivity timeout
 **Validation:** Sessions persist in Firestore. Join/leave updates reflected.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.6: Screenshot Persistence
 **Files to create:** src/lib/firestore/screenshots.ts
@@ -981,7 +981,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Screenshot gallery component showing all captures for a tour
 - Download and share functionality
 **Validation:** Screenshots saved to Firestore. Gallery shows all captures.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.7: Cloudflare R2 Upload
 **Files to create:** src/lib/r2-upload.ts
@@ -993,7 +993,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Store resulting URLs in Firestore tour document
 - Progress indicator during upload
 **Validation:** Can upload a .glb file. URL is stored and scene loads from R2.
-- [ ] Complete
+- [x] Complete
 
 #### Task 5.8: Settings Panel
 **Files to create:** src/components/ui/SettingsPanel.tsx
@@ -1003,14 +1003,14 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Sections: Display (quality, LOD), Controls (sensitivity, movement speed), Tools (measurement unit, laser color), Audio (voice chat settings), Account (user info, sign out)
 - Settings persist to localStorage
 **Validation:** Settings panel opens/closes. Changes apply immediately. Persist across page reloads.
-- [ ] Complete
+- [x] Complete
 
 #### Phase 5 Exit Criteria
-- [ ] Tours persist across sessions
-- [ ] Annotations saved and restored from Firestore
-- [ ] Scene files hosted on R2 and loading correctly
-- [ ] User authentication working
-- [ ] Screenshots saved and viewable in gallery
+- [x] Tours persist across sessions
+- [x] Annotations saved and restored from Firestore
+- [x] Scene files hosted on R2 and loading correctly
+- [x] User authentication working
+- [x] Screenshots saved and viewable in gallery
 
 ---
 
