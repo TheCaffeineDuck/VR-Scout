@@ -3,6 +3,8 @@ import { useViewerStore, type EnvironmentPreset } from '@/stores/viewer-store'
 import { useToolStore } from '@/stores/tool-store'
 import { useAuthContext } from '@/hooks/useAuthContext'
 import { isFirebaseAvailable } from '@/lib/firebase'
+import { useTranslation } from 'react-i18next'
+import { setLanguage, SUPPORTED_LANGUAGES } from '@/i18n'
 
 const SETTINGS_KEY = 'vr-scout:settings'
 
@@ -249,6 +251,21 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             </Label>
           </Section>
 
+          {/* Language */}
+          <Section title="Language">
+            <Label text="Interface Language">
+              <div className="flex gap-2">
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <LanguageButton
+                    key={lang.code}
+                    code={lang.code}
+                    nativeName={lang.nativeName}
+                  />
+                ))}
+              </div>
+            </Label>
+          </Section>
+
           {/* Account */}
           <Section title="Account">
             <div className="bg-gray-800 rounded-lg p-3">
@@ -349,6 +366,23 @@ function Slider({
         className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
       />
     </div>
+  )
+}
+
+function LanguageButton({ code, nativeName }: { code: string; nativeName: string }) {
+  const { i18n } = useTranslation()
+  const isActive = i18n.language === code
+  return (
+    <button
+      onClick={() => setLanguage(code)}
+      className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${
+        isActive
+          ? 'bg-indigo-600 text-white'
+          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+      }`}
+    >
+      {nativeName}
+    </button>
   )
 }
 
