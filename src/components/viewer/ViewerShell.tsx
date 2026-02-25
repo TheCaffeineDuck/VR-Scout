@@ -14,6 +14,7 @@ import { CameraManager } from '@/components/camera-system/CameraManager'
 import { ScreenshotCapture } from '@/components/tools/ScreenshotTool'
 import { SunPathLight } from '@/components/tools/SunPathSimulator'
 import { FloorPlanTracker } from '@/components/tools/FloorPlanOverlay'
+import { LaserPointer } from '@/components/tools/LaserPointer'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -41,6 +42,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <ScreenshotCapture />
             <SunPathLight />
             <FloorPlanTracker />
+            <LaserPointer />
             {children}
           </Suspense>
         </XR>
