@@ -859,7 +859,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `SessionManager.tsx`: Create/join session UI. Access code entry for private sessions. Connection status indicator.
 - Define Croquet model for shared state: participant positions, annotations, measurements, virtual cameras, laser pointers
 **Validation:** Can create a session and see it active. Second browser tab can join the same session.
-- [ ] Complete
+- [x] Complete
 
 #### Task 4.2: Participant Presence
 **Files to create:** src/components/collaboration/ParticipantAvatars.tsx, src/components/collaboration/ParticipantList.tsx
@@ -869,7 +869,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `ParticipantList.tsx`: 2D UI panel showing session roster. Display name, device type icon, connection status. Mute/volume controls per participant.
 - Broadcast local player position/rotation at ~10Hz via Croquet
 **Validation:** Two browser tabs show each other's avatars at correct positions. Participant list shows both users.
-- [ ] Complete
+- [x] Complete
 
 #### Task 4.3: Shared Tool State
 **Files to read:** src/hooks/useAnnotations.ts, src/hooks/useMeasurement.ts, src/hooks/useVirtualCamera.ts, src/hooks/useCollaboration.ts
@@ -880,7 +880,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - Sync laser pointers: visible to all session members
 - Use Croquet's deterministic model to ensure consistency
 **Validation:** Annotation placed by user A appears for user B. Same for measurements, cameras, laser pointers.
-- [ ] Complete
+- [x] Complete
 
 #### Task 4.4: LiveKit Spatial Voice
 **Files to create:** src/components/collaboration/VoiceChatControls.tsx, src/hooks/useVoiceChat.ts
@@ -891,7 +891,7 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `VoiceChatControls.tsx`: Push-to-talk toggle vs open mic. Mute button. Volume slider. Speaking indicator per participant.
 - Create LiveKit room when collaborative session starts
 **Validation:** Two users can hear each other. Audio appears to come from the other user's position in 3D space.
-- [ ] Complete
+- [x] Complete
 
 #### Task 4.5: VR Collaboration Features
 **Files to create:** src/components/controls/TeleportController.tsx, src/components/controls/VRMenu.tsx, src/components/ui/HUD.tsx
@@ -902,14 +902,14 @@ After completing each task, update this checklist by changing `[ ]` to `[x]`. Th
 - `HUD.tsx`: In-VR heads-up display. Shows: active tool, participant count, measurement readout, minimap.
 - Ensure all collaboration features work in VR (avatars visible, voice positioned, tools synced)
 **Validation:** Can teleport in VR. Radial menu works for tool selection. HUD shows relevant info.
-- [ ] Complete
+- [x] Complete
 
 #### Phase 4 Exit Criteria
-- [ ] 2+ users in same VR scene simultaneously
-- [ ] Shared annotations visible to all participants
-- [ ] Spatial voice chat working
-- [ ] Session lifecycle (create → join → collaborate → leave) complete
-- [ ] VR teleportation and menu functional
+- [x] 2+ users in same VR scene simultaneously
+- [x] Shared annotations visible to all participants
+- [x] Spatial voice chat working
+- [x] Session lifecycle (create → join → collaborate → leave) complete
+- [x] VR teleportation and menu functional
 
 ---
 
