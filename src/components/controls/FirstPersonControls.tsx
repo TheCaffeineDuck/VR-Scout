@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls } from '@react-three/drei'
 import * as THREE from 'three'
+import { useToolStore } from '@/stores/tool-store'
 
 const WALK_SPEED = 4 // m/s
 const SPRINT_SPEED = 8 // m/s
@@ -9,6 +10,7 @@ const EYE_HEIGHT = 1.6 // meters
 
 export function FirstPersonControls() {
   const { camera } = useThree()
+  const activeTool = useToolStore((s) => s.activeTool)
   const keys = useRef<Set<string>>(new Set())
   const direction = useRef(new THREE.Vector3())
   const frontVector = useRef(new THREE.Vector3())
@@ -53,5 +55,8 @@ export function FirstPersonControls() {
     camera.position.y = EYE_HEIGHT
   })
 
-  return <PointerLockControls makeDefault />
+  // Only enable pointer lock for navigation mode
+  const enablePointerLock = activeTool === 'navigate'
+
+  return enablePointerLock ? <PointerLockControls makeDefault /> : null
 }

@@ -8,6 +8,7 @@ import { VRControls } from '@/components/controls/VRControls'
 import { EnvironmentLighting } from '@/components/viewer/EnvironmentSettings'
 import { xrStore } from '@/hooks/useXRSession'
 import { PerformanceStats } from '@/components/viewer/PerformanceMonitor'
+import { MeasurementTool } from '@/components/tools/MeasurementTool'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -29,6 +30,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <FirstPersonControls />
             <VRControls />
             <PerformanceStats />
+            <MeasurementTool />
             {children}
           </Suspense>
         </XR>
