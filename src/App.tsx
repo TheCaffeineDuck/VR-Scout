@@ -17,6 +17,8 @@ import { SessionManager } from '@/components/collaboration/SessionManager'
 import { ParticipantList } from '@/components/collaboration/ParticipantList'
 import { SharedToolSync } from '@/components/collaboration/SharedToolSync'
 import { VoiceChatControls } from '@/components/collaboration/VoiceChatControls'
+import { AuthGate } from '@/components/ui/AuthGate'
+import { UserMenu } from '@/components/ui/UserMenu'
 import { enterVR } from '@/hooks/useXRSession'
 import { useViewerStore } from '@/stores/viewer-store'
 import { useToolStore } from '@/stores/tool-store'
@@ -48,46 +50,49 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <ViewerShell>
-        <SceneRenderer />
-      </ViewerShell>
+      <AuthGate>
+        <ViewerShell>
+          <SceneRenderer />
+        </ViewerShell>
 
-      {/* Collaboration */}
-      <SessionManager />
-      <ParticipantList />
-      <SharedToolSync />
-      <VoiceChatControls />
+        {/* Collaboration */}
+        <SessionManager />
+        <ParticipantList />
+        <SharedToolSync />
+        <VoiceChatControls />
 
-      {/* Overlays */}
-      <LoadingOverlay />
-      <SceneSelector />
-      <EnvironmentPanel />
-      <PerformanceKeyHandler />
+        {/* Overlays */}
+        <LoadingOverlay />
+        <SceneSelector />
+        <EnvironmentPanel />
+        <PerformanceKeyHandler />
 
-      {/* Tool panels */}
-      <SunPathPanel />
-      <FloorPlanMinimap />
-      <LensRadialMenu />
+        {/* Tool panels */}
+        <SunPathPanel />
+        <FloorPlanMinimap />
+        <LensRadialMenu />
 
-      {/* Main toolbar */}
-      <Toolbar />
+        {/* Main toolbar */}
+        <Toolbar />
 
-      {/* Top-right action buttons */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-        <CameraSpawnButton />
-        <ScreenshotButton />
-        <button
-          onClick={enterVR}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium text-xs shadow-lg"
-        >
-          Enter VR
-        </button>
-      </div>
+        {/* Top-right action buttons */}
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+          <UserMenu />
+          <CameraSpawnButton />
+          <ScreenshotButton />
+          <button
+            onClick={enterVR}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium text-xs shadow-lg"
+          >
+            Enter VR
+          </button>
+        </div>
 
-      {/* Comparison viewer */}
-      {showComparison && (
-        <ComparisonViewer onClose={() => setShowComparison(false)} />
-      )}
+        {/* Comparison viewer */}
+        {showComparison && (
+          <ComparisonViewer onClose={() => setShowComparison(false)} />
+        )}
+      </AuthGate>
     </ErrorBoundary>
   )
 }
