@@ -13,6 +13,7 @@ import { AnnotationTool } from '@/components/tools/AnnotationTool'
 import { CameraManager } from '@/components/camera-system/CameraManager'
 import { ScreenshotCapture } from '@/components/tools/ScreenshotTool'
 import { SunPathLight } from '@/components/tools/SunPathSimulator'
+import { FloorPlanTracker } from '@/components/tools/FloorPlanOverlay'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -39,6 +40,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <CameraManager />
             <ScreenshotCapture />
             <SunPathLight />
+            <FloorPlanTracker />
             {children}
           </Suspense>
         </XR>
