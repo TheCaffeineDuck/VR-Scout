@@ -22,6 +22,7 @@ import { UserMenu } from '@/components/ui/UserMenu'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { ScreenshotGallery } from '@/components/ui/ScreenshotGallery'
 import { SubscriptionPanel } from '@/components/ui/SubscriptionPanel'
+import { Dashboard } from '@/components/dashboard/Dashboard'
 import { enterVR } from '@/hooks/useXRSession'
 import { useViewerStore } from '@/stores/viewer-store'
 import { useToolStore } from '@/stores/tool-store'
@@ -49,6 +50,7 @@ function AppContent() {
   const [showSettings, setShowSettings] = useState(false)
   const [showGallery, setShowGallery] = useState(false)
   const [showSubscription, setShowSubscription] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
 
   // Load subscription on auth
   useEffect(() => {
@@ -103,6 +105,7 @@ function AppContent() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenGallery={() => setShowGallery(true)}
         onOpenSubscription={() => setShowSubscription(true)}
+        onOpenDashboard={() => setShowDashboard(true)}
       />
 
       {/* Top-right action buttons */}
@@ -136,6 +139,17 @@ function AppContent() {
       {/* Subscription panel */}
       {showSubscription && (
         <SubscriptionPanel onClose={() => setShowSubscription(false)} />
+      )}
+
+      {/* Dashboard */}
+      {showDashboard && (
+        <Dashboard
+          onClose={() => setShowDashboard(false)}
+          onLoadTour={(tour) => {
+            setSceneLOD(tour.meshUrls)
+            setShowDashboard(false)
+          }}
+        />
       )}
     </>
   )

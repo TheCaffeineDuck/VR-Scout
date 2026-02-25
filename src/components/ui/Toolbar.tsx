@@ -27,10 +27,12 @@ export function Toolbar({
   onOpenSettings,
   onOpenGallery,
   onOpenSubscription,
+  onOpenDashboard,
 }: {
   onOpenSettings?: () => void
   onOpenGallery?: () => void
   onOpenSubscription?: () => void
+  onOpenDashboard?: () => void
 }) {
   const activeTool = useToolStore((s) => s.activeTool)
   const setActiveTool = useToolStore((s) => s.setActiveTool)
@@ -123,6 +125,17 @@ export function Toolbar({
           title="Screenshot Gallery"
         >
           🖼
+        </button>
+      )}
+
+      {/* Dashboard button */}
+      {onOpenDashboard && (
+        <button
+          onClick={onOpenDashboard}
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          title="Dashboard"
+        >
+          &#9783;
         </button>
       )}
 
