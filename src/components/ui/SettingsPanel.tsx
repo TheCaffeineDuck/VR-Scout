@@ -64,6 +64,9 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   const [movementSpeed, setMovementSpeed] = useState(4)
   const [mouseSensitivity, setMouseSensitivity] = useState(1)
+  const [highContrast, setHighContrast] = useState(
+    () => document.documentElement.classList.contains('high-contrast')
+  )
 
   // Load persisted settings on mount
   useEffect(() => {
@@ -99,10 +102,11 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   ]
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 flex justify-end">
+    <div className="fixed inset-0 z-[200] bg-black/60 flex justify-end" role="dialog" aria-modal="true" aria-label="Settings">
       <div
         className="absolute inset-0"
         onClick={onClose}
+        aria-hidden="true"
       />
       <div className="relative bg-gray-900 border-l border-gray-700 w-80 h-full overflow-y-auto shadow-2xl">
         {/* Header */}
@@ -111,6 +115,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white"
+            aria-label="Close settings"
           >
             x
           </button>
@@ -184,6 +189,15 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               onChange={(v) => {
                 setShowStats(v)
                 persist('showStats', v)
+              }}
+            />
+            <Toggle
+              label="High Contrast"
+              checked={highContrast}
+              onChange={(v) => {
+                setHighContrast(v)
+                document.documentElement.classList.toggle('high-contrast', v)
+                try { localStorage.setItem('vr-scout:high-contrast', String(v)) } catch {}
               }}
             />
           </Section>

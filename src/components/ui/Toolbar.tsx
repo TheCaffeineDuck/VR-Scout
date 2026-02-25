@@ -69,30 +69,37 @@ export function Toolbar({
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-gray-900/95 rounded-xl px-2 py-1.5 shadow-xl border border-gray-800">
+    <nav
+      role="toolbar"
+      aria-label="Scouting tools"
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-gray-900/95 rounded-xl px-2 py-1.5 shadow-xl border border-gray-800"
+    >
       {TOOLS.map((t) => (
         <button
           key={t.tool}
           onClick={() => handleToolClick(t.tool)}
+          aria-label={`${t.label} tool (keyboard shortcut ${t.shortcut})`}
+          aria-pressed={activeTool === t.tool}
           title={`${t.label} (${t.shortcut})`}
-          className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors min-w-[52px] ${
+          className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors min-w-[52px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
             activeTool === t.tool
               ? 'bg-indigo-600 text-white'
               : 'text-gray-400 hover:bg-gray-800 hover:text-white'
           }`}
         >
-          <span className="text-base leading-none">{t.icon}</span>
+          <span className="text-base leading-none" aria-hidden="true">{t.icon}</span>
           <span className="text-[9px] leading-none">{t.label}</span>
         </button>
       ))}
 
       {/* Divider */}
-      <div className="w-px h-8 bg-gray-700 mx-1" />
+      <div className="w-px h-8 bg-gray-700 mx-1" role="separator" />
 
       {/* Unit toggle */}
       <button
         onClick={() => setMeasurementUnit(measurementUnit === 'meters' ? 'feet' : 'meters')}
-        className="text-[10px] text-gray-400 hover:text-white px-2 py-1 rounded"
+        className="text-[10px] text-gray-400 hover:text-white px-2 py-1 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+        aria-label={`Measurement unit: ${measurementUnit}. Click to toggle.`}
         title="Toggle measurement unit"
       >
         {measurementUnit === 'meters' ? 'm' : 'ft'}
@@ -102,29 +109,31 @@ export function Toolbar({
       {measurements.length > 0 && (
         <button
           onClick={clearMeasurements}
-          className="text-[10px] text-gray-500 hover:text-red-400 px-1"
+          className="text-[10px] text-gray-500 hover:text-red-400 px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          aria-label={`${measurements.length} measurements. Click to clear.`}
           title="Clear measurements"
         >
           {measurements.length} meas
         </button>
       )}
       {annotations.length > 0 && (
-        <span className="text-[10px] text-gray-500 px-1">
+        <span className="text-[10px] text-gray-500 px-1" aria-label={`${annotations.length} annotations`}>
           {annotations.length} ann
         </span>
       )}
 
       {/* Divider */}
-      <div className="w-px h-8 bg-gray-700 mx-1" />
+      <div className="w-px h-8 bg-gray-700 mx-1" role="separator" />
 
       {/* Gallery button */}
       {onOpenGallery && (
         <button
           onClick={onOpenGallery}
-          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          aria-label="Open screenshot gallery"
           title="Screenshot Gallery"
         >
-          🖼
+          <span aria-hidden="true">🖼</span>
         </button>
       )}
 
@@ -132,10 +141,11 @@ export function Toolbar({
       {onOpenDashboard && (
         <button
           onClick={onOpenDashboard}
-          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          aria-label="Open dashboard"
           title="Dashboard"
         >
-          &#9783;
+          <span aria-hidden="true">&#9783;</span>
         </button>
       )}
 
@@ -143,10 +153,11 @@ export function Toolbar({
       {onOpenSubscription && (
         <button
           onClick={onOpenSubscription}
-          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          aria-label="Open subscription plans"
           title="Subscription"
         >
-          &#9734;
+          <span aria-hidden="true">&#9734;</span>
         </button>
       )}
 
@@ -154,12 +165,13 @@ export function Toolbar({
       {onOpenSettings && (
         <button
           onClick={onOpenSettings}
-          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          aria-label="Open settings"
           title="Settings"
         >
-          ⚙
+          <span aria-hidden="true">⚙</span>
         </button>
       )}
-    </div>
+    </nav>
   )
 }

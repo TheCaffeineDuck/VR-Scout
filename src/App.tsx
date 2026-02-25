@@ -79,11 +79,27 @@ function AppContent() {
     }
   }, [activeTool])
 
+  // Restore high contrast mode from localStorage
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('vr-scout:high-contrast') === 'true') {
+        document.documentElement.classList.add('high-contrast')
+      }
+    } catch {}
+  }, [])
+
   return (
     <>
-      <ViewerShell>
-        <SceneRenderer />
-      </ViewerShell>
+      {/* Skip link for keyboard users */}
+      <a href="#main-viewer" className="skip-link">
+        Skip to viewer
+      </a>
+
+      <main id="main-viewer" role="main" aria-label="3D Scene Viewer">
+        <ViewerShell>
+          <SceneRenderer />
+        </ViewerShell>
+      </main>
 
       {/* Collaboration */}
       <SessionManager />
@@ -111,13 +127,14 @@ function AppContent() {
       />
 
       {/* Top-right action buttons */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2" role="group" aria-label="Quick actions">
         <UserMenu />
         <CameraSpawnButton />
         <ScreenshotButton />
         <button
           onClick={enterVR}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium text-xs shadow-lg"
+          aria-label="Enter VR mode"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium text-xs shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
         >
           Enter VR
         </button>
