@@ -26,9 +26,11 @@ const TOOLS: ToolButton[] = [
 export function Toolbar({
   onOpenSettings,
   onOpenGallery,
+  onOpenSubscription,
 }: {
   onOpenSettings?: () => void
   onOpenGallery?: () => void
+  onOpenSubscription?: () => void
 }) {
   const activeTool = useToolStore((s) => s.activeTool)
   const setActiveTool = useToolStore((s) => s.setActiveTool)
@@ -121,6 +123,17 @@ export function Toolbar({
           title="Screenshot Gallery"
         >
           🖼
+        </button>
+      )}
+
+      {/* Subscription button */}
+      {onOpenSubscription && (
+        <button
+          onClick={onOpenSubscription}
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          title="Subscription"
+        >
+          &#9734;
         </button>
       )}
 

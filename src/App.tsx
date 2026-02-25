@@ -21,18 +21,41 @@ import { AuthGate } from '@/components/ui/AuthGate'
 import { UserMenu } from '@/components/ui/UserMenu'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { ScreenshotGallery } from '@/components/ui/ScreenshotGallery'
+import { SubscriptionPanel } from '@/components/ui/SubscriptionPanel'
 import { enterVR } from '@/hooks/useXRSession'
 import { useViewerStore } from '@/stores/viewer-store'
 import { useToolStore } from '@/stores/tool-store'
+import { useSubscriptionStore } from '@/stores/subscription-store'
+import { useAuthContext } from '@/hooks/useAuthContext'
 
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <AuthGate>
+        <AppContent />
+      </AuthGate>
+    </ErrorBoundary>
+  )
+}
+
+function AppContent() {
+  const { user } = useAuthContext()
   const setSceneLOD = useViewerStore((s) => s.setSceneLOD)
   const sceneLOD = useViewerStore((s) => s.sceneLOD)
   const sceneUrl = useViewerStore((s) => s.sceneUrl)
   const activeTool = useToolStore((s) => s.activeTool)
+  const loadSubscription = useSubscriptionStore((s) => s.loadSubscription)
   const [showComparison, setShowComparison] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showGallery, setShowGallery] = useState(false)
+  const [showSubscription, setShowSubscription] = useState(false)
+
+  // Load subscription on auth
+  useEffect(() => {
+    if (user) {
+      loadSubscription(user.uid)
+    }
+  }, [user, loadSubscription])
 
   // Auto-load default scene on first mount
   useEffect(() => {
@@ -53,63 +76,67 @@ export default function App() {
   }, [activeTool])
 
   return (
-    <ErrorBoundary>
-      <AuthGate>
-        <ViewerShell>
-          <SceneRenderer />
-        </ViewerShell>
+    <>
+      <ViewerShell>
+        <SceneRenderer />
+      </ViewerShell>
 
-        {/* Collaboration */}
-        <SessionManager />
-        <ParticipantList />
-        <SharedToolSync />
-        <VoiceChatControls />
+      {/* Collaboration */}
+      <SessionManager />
+      <ParticipantList />
+      <SharedToolSync />
+      <VoiceChatControls />
 
-        {/* Overlays */}
-        <LoadingOverlay />
-        <SceneSelector />
-        <EnvironmentPanel />
-        <PerformanceKeyHandler />
+      {/* Overlays */}
+      <LoadingOverlay />
+      <SceneSelector />
+      <EnvironmentPanel />
+      <PerformanceKeyHandler />
 
-        {/* Tool panels */}
-        <SunPathPanel />
-        <FloorPlanMinimap />
-        <LensRadialMenu />
+      {/* Tool panels */}
+      <SunPathPanel />
+      <FloorPlanMinimap />
+      <LensRadialMenu />
 
-        {/* Main toolbar */}
-        <Toolbar
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenGallery={() => setShowGallery(true)}
-        />
+      {/* Main toolbar */}
+      <Toolbar
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenGallery={() => setShowGallery(true)}
+        onOpenSubscription={() => setShowSubscription(true)}
+      />
 
-        {/* Top-right action buttons */}
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-          <UserMenu />
-          <CameraSpawnButton />
-          <ScreenshotButton />
-          <button
-            onClick={enterVR}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium text-xs shadow-lg"
-          >
-            Enter VR
-          </button>
-        </div>
+      {/* Top-right action buttons */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <UserMenu />
+        <CameraSpawnButton />
+        <ScreenshotButton />
+        <button
+          onClick={enterVR}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium text-xs shadow-lg"
+        >
+          Enter VR
+        </button>
+      </div>
 
-        {/* Comparison viewer */}
-        {showComparison && (
-          <ComparisonViewer onClose={() => setShowComparison(false)} />
-        )}
+      {/* Comparison viewer */}
+      {showComparison && (
+        <ComparisonViewer onClose={() => setShowComparison(false)} />
+      )}
 
-        {/* Settings panel */}
-        {showSettings && (
-          <SettingsPanel onClose={() => setShowSettings(false)} />
-        )}
+      {/* Settings panel */}
+      {showSettings && (
+        <SettingsPanel onClose={() => setShowSettings(false)} />
+      )}
 
-        {/* Screenshot gallery */}
-        {showGallery && (
-          <ScreenshotGallery onClose={() => setShowGallery(false)} />
-        )}
-      </AuthGate>
-    </ErrorBoundary>
+      {/* Screenshot gallery */}
+      {showGallery && (
+        <ScreenshotGallery onClose={() => setShowGallery(false)} />
+      )}
+
+      {/* Subscription panel */}
+      {showSubscription && (
+        <SubscriptionPanel onClose={() => setShowSubscription(false)} />
+      )}
+    </>
   )
 }
