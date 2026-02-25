@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useToolStore } from '@/stores/tool-store'
 import { useMeasurementStore } from '@/hooks/useMeasurement'
 import { useAnnotationStore } from '@/hooks/useAnnotations'
@@ -23,7 +23,13 @@ const TOOLS: ToolButton[] = [
   { tool: 'compare',    label: 'Compare',     icon: '⚖',  shortcut: '9' },
 ]
 
-export function Toolbar() {
+export function Toolbar({
+  onOpenSettings,
+  onOpenGallery,
+}: {
+  onOpenSettings?: () => void
+  onOpenGallery?: () => void
+}) {
   const activeTool = useToolStore((s) => s.activeTool)
   const setActiveTool = useToolStore((s) => s.setActiveTool)
   const measurementUnit = useToolStore((s) => s.measurementUnit)
@@ -102,6 +108,31 @@ export function Toolbar() {
         <span className="text-[10px] text-gray-500 px-1">
           {annotations.length} ann
         </span>
+      )}
+
+      {/* Divider */}
+      <div className="w-px h-8 bg-gray-700 mx-1" />
+
+      {/* Gallery button */}
+      {onOpenGallery && (
+        <button
+          onClick={onOpenGallery}
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          title="Screenshot Gallery"
+        >
+          🖼
+        </button>
+      )}
+
+      {/* Settings button */}
+      {onOpenSettings && (
+        <button
+          onClick={onOpenSettings}
+          className="text-gray-400 hover:text-white px-2 py-1 rounded text-sm"
+          title="Settings"
+        >
+          ⚙
+        </button>
       )}
     </div>
   )

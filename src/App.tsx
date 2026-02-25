@@ -19,6 +19,8 @@ import { SharedToolSync } from '@/components/collaboration/SharedToolSync'
 import { VoiceChatControls } from '@/components/collaboration/VoiceChatControls'
 import { AuthGate } from '@/components/ui/AuthGate'
 import { UserMenu } from '@/components/ui/UserMenu'
+import { SettingsPanel } from '@/components/ui/SettingsPanel'
+import { ScreenshotGallery } from '@/components/ui/ScreenshotGallery'
 import { enterVR } from '@/hooks/useXRSession'
 import { useViewerStore } from '@/stores/viewer-store'
 import { useToolStore } from '@/stores/tool-store'
@@ -29,6 +31,8 @@ export default function App() {
   const sceneUrl = useViewerStore((s) => s.sceneUrl)
   const activeTool = useToolStore((s) => s.activeTool)
   const [showComparison, setShowComparison] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showGallery, setShowGallery] = useState(false)
 
   // Auto-load default scene on first mount
   useEffect(() => {
@@ -73,7 +77,10 @@ export default function App() {
         <LensRadialMenu />
 
         {/* Main toolbar */}
-        <Toolbar />
+        <Toolbar
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenGallery={() => setShowGallery(true)}
+        />
 
         {/* Top-right action buttons */}
         <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
@@ -91,6 +98,16 @@ export default function App() {
         {/* Comparison viewer */}
         {showComparison && (
           <ComparisonViewer onClose={() => setShowComparison(false)} />
+        )}
+
+        {/* Settings panel */}
+        {showSettings && (
+          <SettingsPanel onClose={() => setShowSettings(false)} />
+        )}
+
+        {/* Screenshot gallery */}
+        {showGallery && (
+          <ScreenshotGallery onClose={() => setShowGallery(false)} />
         )}
       </AuthGate>
     </ErrorBoundary>
