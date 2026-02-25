@@ -18,6 +18,9 @@ import { LaserPointer } from '@/components/tools/LaserPointer'
 import { ParticipantAvatars } from '@/components/collaboration/ParticipantAvatars'
 import { PositionBroadcaster } from '@/components/collaboration/PositionBroadcaster'
 import { SharedCursor } from '@/components/collaboration/SharedCursor'
+import { TeleportController } from '@/components/controls/TeleportController'
+import { VRMenu } from '@/components/controls/VRMenu'
+import { HUD } from '@/components/ui/HUD'
 
 interface ViewerShellProps {
   children?: ReactNode
@@ -49,6 +52,9 @@ export function ViewerShell({ children }: ViewerShellProps) {
             <ParticipantAvatars />
             <PositionBroadcaster />
             <SharedCursor />
+            <TeleportController />
+            <VRMenu />
+            <HUD />
             {children}
           </Suspense>
         </XR>
