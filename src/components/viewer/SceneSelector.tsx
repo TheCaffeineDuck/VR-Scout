@@ -5,7 +5,7 @@ import type { SceneLOD } from '@/types/scene'
 interface SceneEntry {
   id: string
   name: string
-  triangleCount: string
+  splatCount: string
   fileSize: string
   lod: SceneLOD
 }
@@ -15,23 +15,23 @@ const LOCAL_SCENES: SceneEntry[] = [
   {
     id: 'room',
     name: 'Room',
-    triangleCount: '973K',
+    splatCount: '973K',
     fileSize: '11.5 MB',
     lod: {
-      preview: '/scenes/room_preview.glb',
-      medium: '/scenes/room_medium.glb',
-      high: '/scenes/room_high.glb',
+      preview: '/scenes/room_preview.spz',
+      medium: '/scenes/room_medium.spz',
+      high: '/scenes/room_high.spz',
     },
   },
   {
     id: 'garden',
     name: 'Garden',
-    triangleCount: '1.6M',
+    splatCount: '1.6M',
     fileSize: '21.5 MB',
     lod: {
-      preview: '/scenes/garden_preview.glb',
-      medium: '/scenes/garden_medium.glb',
-      high: '/scenes/garden_high.glb',
+      preview: '/scenes/garden_preview.spz',
+      medium: '/scenes/garden_medium.spz',
+      high: '/scenes/garden_high.spz',
     },
   },
 ]
@@ -86,7 +86,7 @@ export function SceneSelector() {
                 >
                   <div className="text-sm font-medium text-white">{scene.name}</div>
                   <div className="flex gap-3 mt-1 text-xs text-gray-400">
-                    <span>{scene.triangleCount} tris</span>
+                    <span>{scene.splatCount} splats</span>
                     <span>{scene.fileSize}</span>
                   </div>
                 </button>

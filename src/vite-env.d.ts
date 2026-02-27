@@ -5,7 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_CROQUET_API_KEY?: string
   readonly VITE_LIVEKIT_URL?: string
   readonly VITE_LIVEKIT_API_KEY?: string
-  readonly VITE_LIVEKIT_API_SECRET?: string
   readonly VITE_FIREBASE_API_KEY?: string
   readonly VITE_FIREBASE_AUTH_DOMAIN?: string
   readonly VITE_FIREBASE_PROJECT_ID?: string

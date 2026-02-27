@@ -8,7 +8,7 @@ interface Stats {
   totalTours: number
   publishedTours: number
   draftTours: number
-  totalTriangles: number
+  totalSplats: number
   totalScreenshots: number
   totalSizeMb: number
 }
@@ -32,7 +32,7 @@ export function AnalyticsOverview() {
           totalTours: tours.length,
           publishedTours: tours.filter((t: VirtualTour) => t.status === 'published').length,
           draftTours: tours.filter((t: VirtualTour) => t.status === 'draft').length,
-          totalTriangles: tours.reduce((sum: number, t: VirtualTour) => sum + t.triangleCount, 0),
+          totalSplats: tours.reduce((sum: number, t: VirtualTour) => sum + t.splatCount, 0),
           totalScreenshots: screenshots.length,
           totalSizeMb: tours.reduce((sum: number, t: VirtualTour) => sum + t.fileSize, 0) / (1024 * 1024),
         })
@@ -64,9 +64,9 @@ export function AnalyticsOverview() {
   const cards: { label: string; value: string; sub?: string }[] = [
     { label: 'Total Tours', value: stats.totalTours.toString() },
     { label: 'Published', value: stats.publishedTours.toString(), sub: `${stats.draftTours} drafts` },
-    { label: 'Total Triangles', value: stats.totalTriangles > 1_000_000
-      ? `${(stats.totalTriangles / 1_000_000).toFixed(1)}M`
-      : stats.totalTriangles.toLocaleString()
+    { label: 'Total Splats', value: stats.totalSplats > 1_000_000
+      ? `${(stats.totalSplats / 1_000_000).toFixed(1)}M`
+      : stats.totalSplats.toLocaleString()
     },
     { label: 'Screenshots', value: stats.totalScreenshots.toString() },
     { label: 'Total Size', value: `${stats.totalSizeMb.toFixed(1)} MB` },

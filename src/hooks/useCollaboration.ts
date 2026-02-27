@@ -3,7 +3,6 @@ import { useSessionStore } from '@/stores/session-store'
 import { useParticipantPresenceStore } from '@/stores/participant-store'
 import type { Participant } from '@/types/session'
 import {
-  type CollaborationSession,
   type CollaborationEvent,
   createLocalSession,
   createCollaborativeSession,
@@ -17,21 +16,20 @@ import type { Annotation } from '@/types/annotation'
 import type { MeasurementLine } from '@/hooks/useMeasurement'
 import type { VirtualCamera } from '@/types/camera'
 
-// Singleton session ref shared across hook consumers
-let activeSession: CollaborationSession | null = null
-
 export function useCollaboration() {
   const {
     currentSession,
     participants,
     isCollaborative,
     connectionStatus,
+    collaborationSession,
     setCurrentSession,
     setParticipants,
     addParticipant,
     removeParticipant,
     setIsCollaborative,
     setConnectionStatus,
+    setCollaborationSession,
   } = useSessionStore()
 
   const {
@@ -43,9 +41,12 @@ export function useCollaboration() {
 
   const eventListenerRef = useRef<((event: CollaborationEvent) => void) | null>(null)
 
-  // Handle incoming collaboration events
+  // Handle incoming collaboration events.
+  // Capture the session at effect setup time so cleanup always references
+  // the correct session, even if the store changes later.
   useEffect(() => {
-    if (!activeSession) return
+    const session = collaborationSession
+    if (!session) return
 
     const listener = (event: CollaborationEvent) => {
       switch (event.type) {
@@ -81,21 +82,30 @@ export function useCollaboration() {
     }
 
     eventListenerRef.current = listener
-    activeSession.on(listener)
+    session.on(listener)
 
     return () => {
-      if (activeSession && eventListenerRef.current) {
-        activeSession.off(eventListenerRef.current)
+      // Use the captured `session` so cleanup isn't stale
+      if (eventListenerRef.current) {
+        session.off(eventListenerRef.current)
       }
     }
-  }, [addParticipant, removeParticipant, setRemoteParticipant, updateRemoteParticipant, removeRemoteParticipant])
+  }, [collaborationSession, addParticipant, removeParticipant, setRemoteParticipant, updateRemoteParticipant, removeRemoteParticipant])
 
   const createSession = useCallback(
     async (displayName: string, sessionName?: string) => {
+      // Reject if already connecting — prevents race conditions
+      const status = useSessionStore.getState().connectionStatus
+      if (status === 'connecting') {
+        console.warn('[Collaboration] Session creation already in progress')
+        return null
+      }
+
       // Disconnect existing session
-      if (activeSession) {
-        activeSession.disconnect()
-        activeSession = null
+      const existing = useSessionStore.getState().collaborationSession
+      if (existing) {
+        existing.disconnect()
+        setCollaborationSession(null)
       }
 
       setConnectionStatus('connecting')
@@ -106,7 +116,7 @@ export function useCollaboration() {
           ? await createCollaborativeSession(displayName, sessionName || generateSessionId())
           : createLocalSession(displayName)
 
-        activeSession = session
+        setCollaborationSession(session)
 
         const localParticipant: Participant = {
           uid: session.localUid,
@@ -141,21 +151,29 @@ export function useCollaboration() {
         return null
       }
     },
-    [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus],
+    [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus, setCollaborationSession],
   )
 
   const joinSession = useCallback(
     async (displayName: string, sessionId: string, accessCode?: string) => {
-      if (activeSession) {
-        activeSession.disconnect()
-        activeSession = null
+      // Reject if already connecting
+      const status = useSessionStore.getState().connectionStatus
+      if (status === 'connecting') {
+        console.warn('[Collaboration] Session join already in progress')
+        return null
+      }
+
+      const existing = useSessionStore.getState().collaborationSession
+      if (existing) {
+        existing.disconnect()
+        setCollaborationSession(null)
       }
 
       setConnectionStatus('connecting')
 
       try {
         const session = await joinCollaborativeSession(displayName, sessionId, accessCode)
-        activeSession = session
+        setCollaborationSession(session)
 
         const localParticipant: Participant = {
           uid: session.localUid,
@@ -190,43 +208,44 @@ export function useCollaboration() {
         return null
       }
     },
-    [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus],
+    [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus, setCollaborationSession],
   )
 
   const leaveSession = useCallback(() => {
-    if (activeSession) {
-      activeSession.disconnect()
-      activeSession = null
+    const session = useSessionStore.getState().collaborationSession
+    if (session) {
+      session.disconnect()
+      setCollaborationSession(null)
     }
     setCurrentSession(null)
     setParticipants([])
     setIsCollaborative(false)
     setConnectionStatus('disconnected')
     clearRemoteParticipants()
-  }, [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus, clearRemoteParticipants])
+  }, [setCurrentSession, setParticipants, setIsCollaborative, setConnectionStatus, setCollaborationSession, clearRemoteParticipants])
 
-  // Broadcast helpers
+  // Broadcast helpers read the session from the store at call time
   const broadcastPosition = useCallback(
     (position: [number, number, number], rotation: [number, number, number]) => {
-      activeSession?.broadcastPosition(position, rotation)
+      useSessionStore.getState().collaborationSession?.broadcastPosition(position, rotation)
     },
     [],
   )
 
   const broadcastLaser = useCallback((target: [number, number, number] | null) => {
-    activeSession?.broadcastLaser(target)
+    useSessionStore.getState().collaborationSession?.broadcastLaser(target)
   }, [])
 
   const broadcastAnnotation = useCallback(
     (action: 'add' | 'remove', data: Annotation | string) => {
-      activeSession?.broadcastAnnotation(action, data)
+      useSessionStore.getState().collaborationSession?.broadcastAnnotation(action, data)
     },
     [],
   )
 
   const broadcastMeasurement = useCallback(
     (action: 'add' | 'remove', data: MeasurementLine | string) => {
-      activeSession?.broadcastMeasurement(action, data)
+      useSessionStore.getState().collaborationSession?.broadcastMeasurement(action, data)
     },
     [],
   )
@@ -236,7 +255,7 @@ export function useCollaboration() {
       action: 'add' | 'remove' | 'update',
       data: VirtualCamera | string | { id: string; updates: Partial<VirtualCamera> },
     ) => {
-      activeSession?.broadcastCamera(action, data)
+      useSessionStore.getState().collaborationSession?.broadcastCamera(action, data)
     },
     [],
   )
@@ -248,7 +267,7 @@ export function useCollaboration() {
     isCollaborative,
     connectionStatus,
     isAvailable: isCollaborationAvailable(),
-    localUid: activeSession?.localUid ?? null,
+    localUid: collaborationSession?.localUid ?? null,
 
     // Session lifecycle
     createSession,

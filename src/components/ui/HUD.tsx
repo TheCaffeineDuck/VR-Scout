@@ -14,10 +14,17 @@ const HUD_OFFSET_X = -0.25
  * In-VR heads-up display anchored to the user's view.
  * Shows: active tool, participant count, last measurement readout.
  * Positioned in the lower-left of the user's field of view.
+ * Only renders when an XR session is active (VR mode).
  */
 export function HUD() {
-  const { camera } = useThree()
+  const { camera, gl } = useThree()
   const groupRef = useRef<THREE.Group>(null)
+  const isXR = useRef(false)
+
+  // Track XR state — only show HUD in VR
+  useFrame(() => {
+    isXR.current = gl.xr?.isPresenting ?? false
+  })
 
   const activeTool = useToolStore((s) => s.activeTool)
   const measurementUnit = useToolStore((s) => s.measurementUnit)
@@ -31,28 +38,35 @@ export function HUD() {
       : `${lastMeasurement.distance.toFixed(2)} m`
     : null
 
-  // Follow camera with offset
-  useFrame(() => {
-    if (!groupRef.current) return
+  const hudDir = useRef(new THREE.Vector3())
+  const hudRight = useRef(new THREE.Vector3())
+  const hudUp = useRef(new THREE.Vector3())
 
-    const dir = new THREE.Vector3()
-    camera.getWorldDirection(dir)
+  // Follow camera with offset (only when in VR)
+  useFrame(() => {
+    if (!groupRef.current || !isXR.current) {
+      if (groupRef.current) groupRef.current.visible = false
+      return
+    }
+
+    groupRef.current.visible = true
+    camera.getWorldDirection(hudDir.current)
 
     // HUD slightly below and to the left of center gaze
-    const right = new THREE.Vector3().crossVectors(dir, camera.up).normalize()
-    const up = new THREE.Vector3().crossVectors(right, dir).normalize()
+    hudRight.current.crossVectors(hudDir.current, camera.up).normalize()
+    hudUp.current.crossVectors(hudRight.current, hudDir.current).normalize()
 
     groupRef.current.position
       .copy(camera.position)
-      .add(dir.multiplyScalar(HUD_DISTANCE))
-      .add(right.multiplyScalar(HUD_OFFSET_X))
-      .add(up.multiplyScalar(HUD_OFFSET_Y))
+      .add(hudDir.current.multiplyScalar(HUD_DISTANCE))
+      .add(hudRight.current.multiplyScalar(HUD_OFFSET_X))
+      .add(hudUp.current.multiplyScalar(HUD_OFFSET_Y))
 
     groupRef.current.lookAt(camera.position)
   })
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} visible={false}>
       {/* Background panel */}
       <mesh>
         <planeGeometry args={[0.18, 0.08]} />

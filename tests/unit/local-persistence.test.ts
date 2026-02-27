@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   localGet,
   localSet,
@@ -116,6 +116,54 @@ describe('local-persistence', () => {
     it('generates string IDs', () => {
       expect(typeof localId()).toBe('string')
       expect(localId().length).toBeGreaterThan(5)
+    })
+  })
+
+  describe('error handling', () => {
+    it('should handle localStorage quota exceeded gracefully on set', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('QuotaExceededError', 'QuotaExceededError')
+      })
+
+      expect(() => localSet('test', 'big', { data: 'x' })).not.toThrow()
+      expect(consoleSpy).toHaveBeenCalled()
+
+      vi.restoreAllMocks()
+    })
+
+    it('should return null on get when localStorage throws', () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('Storage access denied')
+      })
+
+      expect(localGet('test', 'item')).toBeNull()
+
+      vi.restoreAllMocks()
+    })
+
+    it('should skip corrupt JSON items in localList', () => {
+      localStorage.setItem('vr-scout:test:bad', '{invalid json')
+      localStorage.setItem('vr-scout:test:__index__', JSON.stringify(['bad']))
+      const items = localList('test')
+      expect(items).toEqual([])
+    })
+
+    it('should return empty ids when index is corrupt', () => {
+      localStorage.setItem('vr-scout:test:__index__', 'not-json')
+      expect(localListIds('test')).toEqual([])
+    })
+
+    it('should handle delete gracefully when localStorage throws', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        throw new Error('Storage error')
+      })
+
+      expect(() => localDelete('test', 'item')).not.toThrow()
+      expect(consoleSpy).toHaveBeenCalled()
+
+      vi.restoreAllMocks()
     })
   })
 })

@@ -1,18 +1,21 @@
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
-import { loadScene, disposeScene } from '@/lib/scene-loader'
-import { buildSceneBVH, disposeSceneBVH } from '@/lib/raycaster'
+import { loadSplatScene, disposeScene } from '@/lib/scene-loader'
 import { useViewerStore } from '@/stores/viewer-store'
 import type { SceneLOD } from '@/types/scene'
 import type { LODLevel } from '@/stores/viewer-store'
 
 /**
- * Progressive LOD loading hook.
+ * Scene loading hook for Spark Gaussian Splat scenes.
  *
- * 1. Loads preview LOD immediately for fast first paint
- * 2. Loads high-quality LOD in background
- * 3. Seamlessly swaps when high quality is ready
+ * Spark scenes (.spz) are pre-oriented and pre-scaled by the capture
+ * pipeline — no PCA auto-level, outlier culling, or geometry merging
+ * needed. The hook loads the splat scene, computes bounds, positions
+ * the camera, and swaps it into the R3F scene graph.
+ *
+ * Progressive LOD loading: loads preview first for fast first paint,
+ * then swaps in high quality in the background.
  */
 export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
   const sceneUrl = useViewerStore((s) => s.sceneUrl)
@@ -30,19 +33,36 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
 
   const placeScene = useCallback(
     (scene: THREE.Group, positionCamera: boolean) => {
+      // Compute bounds from loaded splat
       const box = new THREE.Box3().setFromObject(scene)
+      const size = new THREE.Vector3()
+      box.getSize(size)
+      const center = new THREE.Vector3()
+      box.getCenter(center)
+
       const min = box.min.toArray() as [number, number, number]
       const max = box.max.toArray() as [number, number, number]
       setSceneBounds({ min, max })
 
       if (positionCamera) {
-        const center = new THREE.Vector3()
-        box.getCenter(center)
-        const size = new THREE.Vector3()
-        box.getSize(size)
-        const maxDim = Math.max(size.x, size.z)
-        camera.position.set(center.x, 1.6, center.z + maxDim * 0.75)
-        camera.lookAt(center.x, 1.6, center.z)
+        // Place camera at standing eye height (1.7m above floor)
+        const eyeY = Math.max(box.min.y + 1.7, center.y)
+        camera.position.set(center.x, eyeY, center.z)
+        camera.lookAt(center.x, eyeY, center.z - 1)
+
+        // Far plane from bounding box diagonal
+        const diagonal = size.length()
+        if (camera instanceof THREE.PerspectiveCamera) {
+          camera.far = diagonal * 2
+          camera.near = Math.max(0.05, diagonal * 0.001)
+          camera.updateProjectionMatrix()
+        }
+
+        console.log(
+          `[placeScene] Camera at (${center.x.toFixed(1)}, ${eyeY.toFixed(1)}, ${center.z.toFixed(1)}), ` +
+          `size=(${size.x.toFixed(1)}, ${size.y.toFixed(1)}, ${size.z.toFixed(1)}), ` +
+          `far=${(diagonal * 2).toFixed(0)}`,
+        )
       }
 
       // Swap into scene graph
@@ -51,7 +71,6 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
           const child = groupRef.current.children[0]
           groupRef.current.remove(child)
           if (child instanceof THREE.Group) {
-            disposeSceneBVH(child)
             disposeScene(child)
           }
         }
@@ -60,13 +79,9 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
 
       // Dispose previous scene ref
       if (currentSceneRef.current && currentSceneRef.current !== scene) {
-        disposeSceneBVH(currentSceneRef.current)
         disposeScene(currentSceneRef.current)
       }
       currentSceneRef.current = scene
-
-      // Build BVH acceleration structure for raycasting
-      buildSceneBVH(scene)
 
       setSceneGroup(scene)
     },
@@ -89,7 +104,7 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       if (previewUrl) {
         try {
           setLoadStage('Loading preview...')
-          const preview = await loadScene(previewUrl, (p) => {
+          const preview = await loadSplatScene(previewUrl, (p) => {
             if (!cancelled) setLoadProgress(p * 0.3) // 0-30%
           })
           if (cancelled) {
@@ -101,7 +116,6 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
           setLoadStage('Preview loaded')
         } catch (err) {
           if (cancelled) return
-          // Preview failed — continue to try high quality
           console.warn('Preview LOD failed, loading high quality directly:', err)
         }
       }
@@ -111,20 +125,18 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       if (highUrl && !cancelled) {
         try {
           setLoadStage('Loading high quality...')
-          const highScene = await loadScene(highUrl, (p) => {
+          const highScene = await loadSplatScene(highUrl, (p) => {
             if (!cancelled) setLoadProgress(0.3 + p * 0.7) // 30-100%
           })
           if (cancelled) {
             disposeScene(highScene)
             return
           }
-          // Swap in high quality without repositioning camera
           placeScene(highScene, false)
           setCurrentLOD('high')
           setLoadStage('High quality loaded')
         } catch (err) {
           if (cancelled) return
-          // High quality failed but preview is already showing
           console.warn('High quality LOD failed:', err)
         }
       }
@@ -156,7 +168,7 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       setError(null)
 
       try {
-        const scene = await loadScene(sceneUrl!, (progress) => {
+        const scene = await loadSplatScene(sceneUrl!, (progress) => {
           if (!cancelled) setLoadProgress(progress)
         })
 
@@ -184,4 +196,17 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       cancelled = true
     }
   }, [sceneUrl, sceneLOD, placeScene, setCurrentLOD, setLoading, setLoadProgress, setLoadStage, setError])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      const scene = currentSceneRef.current
+      if (scene) {
+        disposeScene(scene)
+        currentSceneRef.current = null
+      }
+      setSceneGroup(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 }

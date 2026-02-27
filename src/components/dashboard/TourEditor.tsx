@@ -45,14 +45,14 @@ export function TourEditor({ tour, onClose }: TourEditorProps) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(
-    tour?.meshUrls.high || null
+    tour?.splatUrls.high || null
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
 
   const handleFile = useCallback(async (file: File) => {
-    if (!file.name.endsWith('.glb') && !file.name.endsWith('.gltf')) {
-      setError('Only .glb and .gltf files are supported')
+    if (!file.name.endsWith('.spz') && !file.name.endsWith('.ply') && !file.name.endsWith('.splat')) {
+      setError('Only .spz, .ply, and .splat files are supported')
       return
     }
     setError(null)
@@ -90,13 +90,13 @@ export function TourEditor({ tour, onClose }: TourEditorProps) {
       if (isNew) {
         await createTour({
           locationId: locationId || 'untitled',
-          tourType: 'triangle_mesh',
-          meshUrls: {
+          tourType: 'gaussian_splat',
+          splatUrls: {
             preview: uploadedUrl || '',
             medium: uploadedUrl || '',
             high: uploadedUrl || '',
           },
-          triangleCount: 0,
+          splatCount: 0,
           fileSize: 0,
           bounds: { min: [0, 0, 0], max: [1, 1, 1] },
           spawnPoint: { position: [0, 1.6, 0], rotation: [0, 0, 0] },
@@ -117,9 +117,9 @@ export function TourEditor({ tour, onClose }: TourEditorProps) {
             lat: parseFloat(gpsLat) || 0,
             lng: parseFloat(gpsLng) || 0,
           },
-          meshUrls: uploadedUrl
+          splatUrls: uploadedUrl
             ? { preview: uploadedUrl, medium: uploadedUrl, high: uploadedUrl }
-            : tour.meshUrls,
+            : tour.splatUrls,
         })
         await updateQCChecklist(tour.id, qcChecklist)
         setSuccess('Tour updated')
@@ -215,7 +215,7 @@ export function TourEditor({ tour, onClose }: TourEditorProps) {
 
       {/* Scene upload */}
       <div>
-        <label className="block text-xs text-gray-400 mb-2">Scene File (.glb)</label>
+        <label className="block text-xs text-gray-400 mb-2">Scene File (.spz / .ply / .splat)</label>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
@@ -230,7 +230,7 @@ export function TourEditor({ tour, onClose }: TourEditorProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".glb,.gltf"
+            accept=".spz,.ply,.splat"
             onChange={handleFileInput}
             className="hidden"
           />
@@ -259,10 +259,10 @@ export function TourEditor({ tour, onClose }: TourEditorProps) {
           ) : (
             <div>
               <p className="text-sm text-gray-400">
-                Drop a .glb file here or click to browse
+                Drop a .spz file here or click to browse
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Supports Draco compressed GLB files
+                Supports .spz, .ply, and .splat Gaussian Splat files
               </p>
             </div>
           )}

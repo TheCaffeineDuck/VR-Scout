@@ -32,9 +32,9 @@ export interface QCChecklist {
 export interface VirtualTour {
   id: string
   locationId: string
-  tourType: 'triangle_mesh' | 'panorama'
-  meshUrls: SceneLOD
-  triangleCount: number
+  tourType: 'triangle_mesh' | 'gaussian_splat' | 'panorama'
+  splatUrls: SceneLOD
+  splatCount: number
   fileSize: number
   bounds: { min: [number, number, number]; max: [number, number, number] }
   spawnPoint: { position: [number, number, number]; rotation: [number, number, number] }
@@ -42,7 +42,7 @@ export interface VirtualTour {
   floorPlan: FloorPlan | null
   qcChecklist: QCChecklist
   gps: { lat: number; lng: number }
-  status: 'draft' | 'published'
+  status: 'draft' | 'published' | 'archived'
   createdAt: Date
   updatedAt: Date
 }

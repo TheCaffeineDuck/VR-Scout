@@ -194,3 +194,33 @@ export async function deleteSession(sessionId: string): Promise<void> {
     localDelete(COLLECTION, sessionId)
   }
 }
+
+/** Look up an active session by its 6-character access code. */
+export async function getSessionByAccessCode(
+  code: string,
+): Promise<VRSession | null> {
+  const normalized = code.toUpperCase().replace(/\s/g, '')
+  if (isFirebaseAvailable() && db) {
+    const q = query(
+      collection(db, COLLECTION),
+      where('accessCode', '==', normalized),
+      where('status', '==', 'active'),
+    )
+    const snap = await getDocs(q)
+    if (snap.empty) return null
+    const d = snap.docs[0]
+    return fromFirestore(d.id, d.data() as Record<string, unknown>)
+  }
+  return (
+    localQuery<VRSession>(
+      COLLECTION,
+      (s) => s.accessCode === normalized && s.status === 'active',
+    )[0] ?? null
+  )
+}
+
+/** Check if an access code is already in use by an active session. */
+export async function isAccessCodeTaken(code: string): Promise<boolean> {
+  const session = await getSessionByAccessCode(code)
+  return session !== null
+}

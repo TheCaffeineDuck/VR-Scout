@@ -1,28 +1,43 @@
 import { useRef, useMemo, useEffect } from 'react'
 import * as THREE from 'three'
-import { useFrame, useThree, createPortal } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import type { VirtualCamera } from '@/types/camera'
 import { CINEMA_LENSES } from '@/types/camera'
 
 const MONITOR_WIDTH = 0.4
 const MONITOR_HEIGHT = 0.225 // 16:9 aspect
-const RENDER_SIZE = 256
-const RENDER_FPS = 15
+const RENDER_SIZE_DESKTOP = 512
+const RENDER_SIZE_VR = 256
+const RENDER_FPS_DESKTOP = 15
+const RENDER_INTERVAL_VR_FRAMES = 3 // render every Nth frame in VR
 
 /**
  * A floating quad that shows render-to-texture output of what a virtual camera sees.
  * Positioned near the virtual camera, above and to the right.
+ *
+ * Performance guards:
+ * - Desktop: renders at 15fps into 512px target
+ * - VR: renders every 3rd frame into 256px target to stay within draw call budget
  */
 export function FloatingMonitor({ cam }: { cam: VirtualCamera }) {
   const { scene, gl } = useThree()
   const meshRef = useRef<THREE.Mesh>(null)
   const lens = CINEMA_LENSES[cam.lensIndex]
+  const prevCamRef = useRef<THREE.PerspectiveCamera | null>(null)
 
-  // Create render target and virtual camera
-  const renderTarget = useMemo(
-    () => new THREE.WebGLRenderTarget(RENDER_SIZE, Math.round(RENDER_SIZE * (9 / 16))),
-    [],
-  )
+  // Detect VR mode via XR session on the renderer
+  const isVR = useRef(false)
+  useFrame(() => {
+    isVR.current = gl.xr?.isPresenting ?? false
+  })
+
+  // Create render target for secondary camera view.
+  // gl.render(scene, virtualCam) works with Spark because SparkRenderer
+  // is added to the scene and hooks into onBeforeRender automatically.
+  const renderTarget = useMemo(() => {
+    const size = isVR.current ? RENDER_SIZE_VR : RENDER_SIZE_DESKTOP
+    return new THREE.WebGLRenderTarget(size, Math.round(size * (9 / 16)))
+  }, [])
 
   const virtualCam = useMemo(() => {
     const c = new THREE.PerspectiveCamera(lens.fov, 16 / 9, 0.1, 500)
@@ -30,6 +45,15 @@ export function FloatingMonitor({ cam }: { cam: VirtualCamera }) {
     c.rotation.set(...cam.rotation)
     return c
   }, [cam.position, cam.rotation, lens.fov])
+
+  // Dispose previous camera when virtualCam is recreated
+  useEffect(() => {
+    const prev = prevCamRef.current
+    if (prev && prev !== virtualCam) {
+      prev.removeFromParent()
+    }
+    prevCamRef.current = virtualCam
+  }, [virtualCam])
 
   // Update virtual cam when props change
   useEffect(() => {
@@ -39,19 +63,33 @@ export function FloatingMonitor({ cam }: { cam: VirtualCamera }) {
     virtualCam.updateProjectionMatrix()
   }, [cam.position, cam.rotation, lens.fov, virtualCam])
 
-  // Dispose render target on unmount
+  // Dispose render target and camera on unmount
   useEffect(() => {
-    return () => renderTarget.dispose()
+    return () => {
+      renderTarget.dispose()
+      if (prevCamRef.current) {
+        prevCamRef.current.removeFromParent()
+        prevCamRef.current = null
+      }
+    }
   }, [renderTarget])
 
   // Render to texture at reduced framerate
   const lastRenderTime = useRef(0)
+  const frameCounter = useRef(0)
   useFrame(({ clock }) => {
-    const now = clock.getElapsedTime()
-    if (now - lastRenderTime.current < 1 / RENDER_FPS) return
-    lastRenderTime.current = now
+    frameCounter.current++
 
-    // Temporarily render from virtual camera POV
+    if (isVR.current) {
+      // In VR: render every Nth frame to conserve draw calls
+      if (frameCounter.current % RENDER_INTERVAL_VR_FRAMES !== 0) return
+    } else {
+      // Desktop: time-based throttle
+      const now = clock.getElapsedTime()
+      if (now - lastRenderTime.current < 1 / RENDER_FPS_DESKTOP) return
+      lastRenderTime.current = now
+    }
+
     const currentRT = gl.getRenderTarget()
     gl.setRenderTarget(renderTarget)
     gl.render(scene, virtualCam)

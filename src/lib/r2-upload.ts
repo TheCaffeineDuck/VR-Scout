@@ -10,6 +10,7 @@
  */
 
 import { localSet, localGet, localId } from '@/lib/local-persistence'
+import { auth } from '@/lib/firebase'
 
 const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL
 
@@ -32,15 +33,36 @@ export interface UploadProgress {
   percent: number
 }
 
+/** Sanitize a filename: strip path separators, allow only safe characters */
+function sanitizeFilename(filename: string): string {
+  // Strip path separators
+  const stripped = filename.replace(/[/\\]/g, '')
+  // Allow only alphanumeric, dashes, dots, underscores
+  const sanitized = stripped.replace(/[^a-zA-Z0-9._-]/g, '')
+  if (!sanitized) {
+    throw new Error('Invalid filename: empty after sanitization')
+  }
+  return sanitized
+}
+
 /**
  * Request a signed upload URL from the server.
  * In production, this calls a Firebase Function / API route.
+ * Requires Firebase authentication — includes the user's ID token.
  */
 async function getSignedUploadUrl(
   type: 'mesh' | 'panorama' | 'screenshot',
   filename: string,
   contentType: string
 ): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
+  const user = auth?.currentUser
+  if (!user) {
+    throw new Error('Authentication required to upload files')
+  }
+
+  const idToken = await user.getIdToken()
+  const safeFilename = sanitizeFilename(filename)
+
   const endpoint =
     type === 'screenshot'
       ? `${UPLOAD_API_BASE}/screenshot`
@@ -48,8 +70,11 @@ async function getSignedUploadUrl(
 
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, contentType }),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ filename: safeFilename, contentType }),
   })
 
   if (!res.ok) {

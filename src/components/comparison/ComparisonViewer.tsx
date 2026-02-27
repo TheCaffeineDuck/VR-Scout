@@ -3,8 +3,7 @@ import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Environment } from '@react-three/drei'
 import { createRenderer } from '@/lib/renderer'
-import { loadScene, disposeScene } from '@/lib/scene-loader'
-import { buildSceneBVH, disposeSceneBVH } from '@/lib/raycaster'
+import { loadSplatScene, disposeScene } from '@/lib/scene-loader'
 import { useViewerStore, type EnvironmentPreset } from '@/stores/viewer-store'
 import { CINEMA_LENSES } from '@/types/camera'
 
@@ -195,10 +194,9 @@ function ComparisonScene({
     let cancelled = false
     let loaded: THREE.Group | null = null
 
-    loadScene(url).then((scene) => {
+    loadSplatScene(url).then((scene) => {
       if (cancelled) { disposeScene(scene); return }
       loaded = scene
-      buildSceneBVH(scene)
 
       if (groupRef.current) {
         // Clear previous
@@ -223,7 +221,6 @@ function ComparisonScene({
     return () => {
       cancelled = true
       if (loaded) {
-        disposeSceneBVH(loaded)
         disposeScene(loaded)
       }
     }

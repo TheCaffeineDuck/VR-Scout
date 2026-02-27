@@ -21,8 +21,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Vendor: Three.js ecosystem
+          // Vendor: Three.js ecosystem + Spark
           'three-core': ['three'],
+          'spark': ['@sparkjsdev/spark'],
           'three-r3f': ['@react-three/fiber', '@react-three/drei'],
           'three-xr': ['@react-three/xr'],
           // Vendor: Firebase

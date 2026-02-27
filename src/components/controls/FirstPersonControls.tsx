@@ -3,18 +3,29 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { useToolStore } from '@/stores/tool-store'
-
-const WALK_SPEED = 4 // m/s
-const SPRINT_SPEED = 8 // m/s
-const EYE_HEIGHT = 1.6 // meters
+import { useViewerStore } from '@/stores/viewer-store'
 
 export function FirstPersonControls() {
   const { camera } = useThree()
   const activeTool = useToolStore((s) => s.activeTool)
+  const sceneBounds = useViewerStore((s) => s.sceneBounds)
   const keys = useRef<Set<string>>(new Set())
   const direction = useRef(new THREE.Vector3())
   const frontVector = useRef(new THREE.Vector3())
   const sideVector = useRef(new THREE.Vector3())
+  const moveVector = useRef(new THREE.Vector3())
+
+  // Derive movement speed from scene size so navigation feels natural
+  // regardless of COLMAP's arbitrary scale.
+  const sceneScale = sceneBounds
+    ? Math.max(
+        sceneBounds.max[0] - sceneBounds.min[0],
+        sceneBounds.max[2] - sceneBounds.min[2],
+      )
+    : 10
+  // Walk across the scene's longest floor axis in ~15s, sprint in ~7s
+  const walkSpeed = sceneScale / 15
+  const sprintSpeed = sceneScale / 7
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => keys.current.add(e.code)
@@ -29,7 +40,7 @@ export function FirstPersonControls() {
 
   useFrame((_, delta) => {
     const pressed = keys.current
-    const speed = pressed.has('ShiftLeft') || pressed.has('ShiftRight') ? SPRINT_SPEED : WALK_SPEED
+    const speed = pressed.has('ShiftLeft') || pressed.has('ShiftRight') ? sprintSpeed : walkSpeed
 
     // Forward/backward
     const forward = (pressed.has('KeyW') ? 1 : 0) - (pressed.has('KeyS') ? 1 : 0)
@@ -44,15 +55,16 @@ export function FirstPersonControls() {
     sideVector.current.crossVectors(frontVector.current, camera.up).normalize()
 
     // Combine movement vectors
-    const moveVector = new THREE.Vector3()
+    moveVector.current
+      .set(0, 0, 0)
       .addScaledVector(frontVector.current, forward)
       .addScaledVector(sideVector.current, strafe)
       .normalize()
       .multiplyScalar(speed * delta)
 
-    camera.position.add(moveVector)
-    // Lock eye height
-    camera.position.y = EYE_HEIGHT
+    camera.position.add(moveVector.current)
+    // No Y-lock — let the user move freely through the scene
+    // (COLMAP scale is arbitrary so a fixed eye-height doesn't make sense)
   })
 
   // Only enable pointer lock for navigation mode

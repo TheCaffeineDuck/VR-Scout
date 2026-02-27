@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type * as THREE from 'three'
 import type { SceneLOD } from '@/types/scene'
+import { disposeScene } from '@/lib/scene-loader'
 
 export type LODLevel = 'preview' | 'medium' | 'high'
 
@@ -71,19 +72,27 @@ export const useViewerStore = create<ViewerState>((set) => ({
 
   error: null,
 
-  environmentPreset: 'studio',
-  ambientIntensity: 0.5,
-  directionalIntensity: 1.0,
-  fogDistance: 100,
-  showBackground: true,
-  showGrid: true,
+  environmentPreset: 'neutral',
+  ambientIntensity: 0.0,
+  directionalIntensity: 0.0,
+  fogDistance: 200,
+  showBackground: false,
+  showGrid: false,
 
   showStats: false,
 
   setSceneUrl: (url) => set({ sceneUrl: url }),
   setSceneLOD: (lod) => set({ sceneLOD: lod }),
   setCurrentLOD: (level) => set({ currentLOD: level }),
-  setSceneGroup: (group) => set({ sceneGroup: group }),
+  setSceneGroup: (group) =>
+    set((state) => {
+      // Dispose the previous scene group to prevent GPU memory leaks
+      const prev = state.sceneGroup
+      if (prev && prev !== group) {
+        disposeScene(prev)
+      }
+      return { sceneGroup: group }
+    }),
   setSceneBounds: (bounds) => set({ sceneBounds: bounds }),
   setSpawnPoint: (spawn) => set({ spawnPoint: spawn }),
   setLoading: (loading) => set({ loading }),

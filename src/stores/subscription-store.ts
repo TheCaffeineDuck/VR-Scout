@@ -2,16 +2,22 @@ import { create } from 'zustand'
 import type { SubscriptionTier, UserSubscription, TierConfig } from '@/types/subscription'
 import { DEFAULT_SUBSCRIPTION, TIERS } from '@/types/subscription'
 import { isFirebaseAvailable, db } from '@/lib/firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { localGet, localSet } from '@/lib/local-persistence'
+import { doc, getDoc } from 'firebase/firestore'
+import { localGet } from '@/lib/local-persistence'
+
+// Firestore security rules for subscriptions:
+//   match /user_subscriptions/{uid} {
+//     allow read: if request.auth.uid == uid;
+//     allow write: if false; // Only Cloud Functions write subscriptions
+//   }
 
 interface SubscriptionState {
   subscription: UserSubscription
   loading: boolean
 
-  /** Load subscription for the given user */
+  /** Load subscription for the given user (read-only) */
   loadSubscription: (uid: string) => Promise<void>
-  /** Update subscription locally (called from webhook or manual) */
+  /** Update subscription in local state only (e.g. from onSnapshot listener) */
   setSubscription: (sub: Partial<UserSubscription>) => void
   /** Get the current tier config */
   getTierConfig: () => TierConfig
@@ -85,18 +91,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   },
 }))
 
-/** Persist subscription to Firestore or localStorage */
-export async function persistSubscription(uid: string, sub: UserSubscription): Promise<void> {
-  if (isFirebaseAvailable() && db) {
-    try {
-      await setDoc(doc(db, 'user_subscriptions', uid), {
-        ...sub,
-        currentPeriodEnd: sub.currentPeriodEnd || null,
-      })
-      return
-    } catch (err) {
-      console.warn('[Subscription] Failed to persist to Firestore:', err)
-    }
-  }
-  localSet('subscription', uid, sub)
-}
+// NOTE: persistSubscription has been intentionally removed.
+// Subscription writes MUST only come from server-side webhook handlers
+// (see src/lib/stripe-webhooks.ts). The client should only read
+// subscription data via loadSubscription.

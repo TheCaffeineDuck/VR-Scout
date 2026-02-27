@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Environment } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -17,13 +17,34 @@ export function EnvironmentLighting() {
   const fogDistance = useViewerStore((s) => s.fogDistance)
   const showBackground = useViewerStore((s) => s.showBackground)
   const { scene } = useThree()
+  const fogRef = useRef<THREE.Fog | null>(null)
 
-  // Apply fog
-  if (fogDistance < 200) {
-    scene.fog = new THREE.Fog('#111', 1, fogDistance)
-  } else {
-    scene.fog = null
-  }
+  // Set a dark background when no HDRI background is shown.
+  // This avoids a transparent/white canvas bleeding through the scene.
+  useEffect(() => {
+    if (!showBackground || preset === 'neutral') {
+      scene.background = new THREE.Color('#0a0a0a')
+    } else {
+      // When an HDRI preset provides a background, let it handle it
+      // (Environment component sets scene.background automatically)
+    }
+  }, [showBackground, preset, scene])
+
+  // Apply fog — reuse fog instance to avoid per-render allocations
+  useEffect(() => {
+    if (fogDistance < 200) {
+      if (!fogRef.current) {
+        fogRef.current = new THREE.Fog('#0a0a0a', 1, fogDistance)
+      } else {
+        fogRef.current.near = 1
+        fogRef.current.far = fogDistance
+        fogRef.current.color.set('#0a0a0a')
+      }
+      scene.fog = fogRef.current
+    } else {
+      scene.fog = null
+    }
+  }, [fogDistance, scene])
 
   return (
     <>

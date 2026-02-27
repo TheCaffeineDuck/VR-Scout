@@ -19,13 +19,14 @@ const cameraPos = { x: 0, z: 0, angle: 0 }
  */
 export function FloorPlanTracker() {
   const { camera } = useThree()
+  const trackerDir = useRef(new THREE.Vector3())
 
   useFrame(() => {
     cameraPos.x = camera.position.x
     cameraPos.z = camera.position.z
     // Get yaw angle from camera direction
-    const dir = camera.getWorldDirection(new THREE.Vector3())
-    cameraPos.angle = Math.atan2(dir.x, dir.z)
+    camera.getWorldDirection(trackerDir.current)
+    cameraPos.angle = Math.atan2(trackerDir.current.x, trackerDir.current.z)
   })
 
   return null

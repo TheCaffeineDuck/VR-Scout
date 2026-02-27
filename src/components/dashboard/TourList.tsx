@@ -105,7 +105,7 @@ export function TourList({ onEdit, onNew, onLoad }: TourListProps) {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                    <span>{tour.triangleCount.toLocaleString()} triangles</span>
+                    <span>{tour.splatCount.toLocaleString()} splats</span>
                     <span>{formatSize(tour.fileSize)}</span>
                     <span>QC: {qc.done}/{qc.total}</span>
                     <span>{new Date(tour.createdAt).toLocaleDateString()}</span>

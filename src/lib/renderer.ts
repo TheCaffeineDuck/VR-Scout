@@ -1,38 +1,60 @@
 import * as THREE from 'three'
 
 /**
- * Creates a WebGPU renderer with WebGL fallback.
- * Designed to be passed to R3F Canvas `gl` prop as an async factory.
+ * Creates a WebGLRenderer for R3F Canvas `gl` prop.
+ * Caches per canvas element to avoid redundant GPU context init on remounts.
+ *
+ * Rendering philosophy for Spark Gaussian Splatting scenes:
+ * - Spark handles splat rendering internally via its own pipeline
+ * - antialias is disabled (splats don't benefit from MSAA)
+ * - Output color space is sRGB for correct monitor display
+ * - LinearToneMapping acts as a neutral pass-through at exposure 1.0
  */
+const rendererCache = new WeakMap<HTMLCanvasElement, THREE.WebGLRenderer>()
+
+/** Apply VR-optimized settings when entering an XR session. */
+export function applyVRSettings(renderer: THREE.WebGLRenderer) {
+  renderer.xr.setFramebufferScaleFactor(1.0)
+  renderer.xr.setFoveation(0.5)
+  renderer.setPixelRatio(1.0)
+  // Spark splats are display-ready — skip tone mapping for free perf
+  renderer.toneMapping = THREE.NoToneMapping
+}
+
+/** Restore desktop-appropriate settings when leaving an XR session. */
+export function applyDesktopSettings(renderer: THREE.WebGLRenderer) {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.toneMapping = THREE.LinearToneMapping
+  renderer.toneMappingExposure = 1.0
+  try {
+    renderer.xr.setFoveation(0)
+  } catch {
+    // xr may not be available on all renderers
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function createRenderer(props: any) {
+export function createRenderer(props: any) {
   const canvas = props.canvas as HTMLCanvasElement
 
-  if (navigator.gpu) {
-    try {
-      const { WebGPURenderer } = await import('three/webgpu')
-      const renderer = new WebGPURenderer({
-        canvas,
-        antialias: true,
-        powerPreference: 'high-performance',
-      })
-      await renderer.init()
-      renderer.toneMapping = THREE.ACESFilmicToneMapping
-      renderer.toneMappingExposure = 1.0
-      console.log('Using WebGPU renderer')
-      return renderer
-    } catch (e) {
-      console.warn('WebGPU init failed, falling back to WebGL:', e)
-    }
-  }
+  const cached = rendererCache.get(canvas)
+  if (cached) return cached
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: true,
+    antialias: false, // splats don't benefit from MSAA
     powerPreference: 'high-performance',
   })
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
+
+  // Neutral tone mapping — Spark handles splat colors internally,
+  // non-splat elements (annotation markers, grid, etc.) get a
+  // neutral mapping that doesn't crush their colours.
+  renderer.toneMapping = THREE.LinearToneMapping
   renderer.toneMappingExposure = 1.0
-  console.log('Using WebGL renderer')
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+  rendererCache.set(canvas, renderer)
+  console.log('Using WebGL renderer (Spark)')
   return renderer
 }
