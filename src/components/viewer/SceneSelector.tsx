@@ -13,14 +13,21 @@ interface SceneEntry {
 // Hardcoded local scenes — will connect to Firestore in Phase 5
 const LOCAL_SCENES: SceneEntry[] = [
   {
+    id: 'outdoor_rooftop',
+    name: 'Outdoor Rooftop',
+    splatCount: '1.13M',
+    fileSize: '71 MB',
+    lod: {
+      high: '/scenes/outdoor_rooftop.spz',
+    },
+  },
+  {
     id: 'room',
     name: 'Room',
     splatCount: '973K',
     fileSize: '11.5 MB',
     lod: {
-      preview: '/scenes/room_preview.spz',
-      medium: '/scenes/room_medium.spz',
-      high: '/scenes/room_high.spz',
+      high: '/scenes/room.spz',
     },
   },
   {
@@ -29,9 +36,16 @@ const LOCAL_SCENES: SceneEntry[] = [
     splatCount: '1.6M',
     fileSize: '21.5 MB',
     lod: {
-      preview: '/scenes/garden_preview.spz',
-      medium: '/scenes/garden_medium.spz',
-      high: '/scenes/garden_high.spz',
+      high: '/scenes/garden.spz',
+    },
+  },
+  {
+    id: 'indoor_library',
+    name: 'Indoor Library',
+    splatCount: '1.13M',
+    fileSize: '70 MB',
+    lod: {
+      high: '/scenes/indoor_library.spz',
     },
   },
 ]
@@ -43,7 +57,7 @@ export function SceneSelector() {
   const loading = useViewerStore((s) => s.loading)
   const currentLOD = useViewerStore((s) => s.currentLOD)
 
-  const [activeSceneId, setActiveSceneId] = useState<string | null>('room')
+  const [activeSceneId, setActiveSceneId] = useState<string | null>('outdoor_rooftop')
 
   function loadScene(scene: SceneEntry) {
     if (loading) return

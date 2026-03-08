@@ -12,8 +12,19 @@ const LOCAL_SCENES: Array<{
   splatCount: string
   fileSize: string
   status: 'draft' | 'published' | 'archived'
-  splatUrls: { preview: string; medium: string; high: string }
+  splatUrls: { preview?: string; medium?: string; high: string }
 }> = [
+  {
+    id: 'outdoor_rooftop',
+    name: 'Outdoor Rooftop',
+    locationId: 'outdoor_rooftop',
+    splatCount: '1.13M',
+    fileSize: '71 MB',
+    status: 'published',
+    splatUrls: {
+      high: '/scenes/outdoor_rooftop.spz',
+    },
+  },
   {
     id: 'room',
     name: 'Room',
@@ -22,9 +33,7 @@ const LOCAL_SCENES: Array<{
     fileSize: '11.5 MB',
     status: 'published',
     splatUrls: {
-      preview: '/scenes/room_preview.spz',
-      medium: '/scenes/room_medium.spz',
-      high: '/scenes/room_high.spz',
+      high: '/scenes/room.spz',
     },
   },
   {
@@ -35,9 +44,18 @@ const LOCAL_SCENES: Array<{
     fileSize: '21.5 MB',
     status: 'published',
     splatUrls: {
-      preview: '/scenes/garden_preview.spz',
-      medium: '/scenes/garden_medium.spz',
-      high: '/scenes/garden_high.spz',
+      high: '/scenes/garden.spz',
+    },
+  },
+  {
+    id: 'indoor_library',
+    name: 'Indoor Library',
+    locationId: 'indoor_library',
+    splatCount: '1.13M',
+    fileSize: '70 MB',
+    status: 'published',
+    splatUrls: {
+      high: '/scenes/indoor_library.spz',
     },
   },
 ]
