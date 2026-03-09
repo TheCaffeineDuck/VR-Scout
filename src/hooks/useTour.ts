@@ -104,9 +104,12 @@ const DEV_SCENES: Record<string, VirtualTour> = {
     },
     splatCount: 1_131_390,
     fileSize: 73_539_543,
-    bounds: { min: [-13.7, -12.4, -10.5], max: [18.2, 9.9, 8.4] },
+    bounds: { min: [-13.8, -10.6, -10.0], max: [18.3, 8.5, 12.5] },
     spawnPoint: { position: [0, 0, 0], rotation: [0, 0, 0] },
     coordinateSystem: 'opengl', // Nerfstudio Splatfacto output — already Y-up
+    // Floor alignment: Nerfstudio Z-up → Three.js Y-up via -90° X rotation
+    // Computed by scripts/align_scene.py from library_area.ply RANSAC floor detection
+    sceneRotation: [-1.573323, 0.003568, 0.003559],
     viewpoints: [],
     floorPlan: null,
     qcChecklist: {

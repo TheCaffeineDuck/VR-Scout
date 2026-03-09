@@ -24,6 +24,34 @@ import { TeleportController } from '@/components/controls/TeleportController'
 import { VRMenu } from '@/components/controls/VRMenu'
 import { HUD } from '@/components/ui/HUD'
 
+/** Temporary: expose renderer stats to window for diagnosis */
+function DebugStatsExposer() {
+  const gl = useThree((s) => s.gl) as THREE.WebGLRenderer
+  const camera = useThree((s) => s.camera)
+  const scene = useThree((s) => s.scene)
+  useEffect(() => {
+    const w = window as any
+    w.__vrs = {
+      gl,
+      camera,
+      scene,
+      stats: () => ({
+        drawCalls: gl.info.render.calls,
+        triangles: gl.info.render.triangles,
+        textures: gl.info.memory.textures,
+        geometries: gl.info.memory.geometries,
+        pixelRatio: gl.getPixelRatio(),
+        cameraPos: camera.position.toArray().map((v: number) => +v.toFixed(3)),
+        cameraRot: camera.rotation.toArray().slice(0, 3).map((v) => +(v as number).toFixed(3)),
+        cameraFar: (camera as THREE.PerspectiveCamera).far,
+        cameraNear: (camera as THREE.PerspectiveCamera).near,
+      }),
+    }
+    return () => { delete w.__vrs }
+  }, [gl, camera, scene])
+  return null
+}
+
 /** Debug: logs all visible meshes in the scene to help identify rogue geometry */
 function SceneDebugLogger() {
   const { scene } = useThree()
@@ -124,6 +152,7 @@ export function ViewerShell({ children }: ViewerShellProps) {
               <VRMenu />
               <HUD />
               <SceneDebugLogger />
+              <DebugStatsExposer />
               <XRSettingsSync />
               {children}
             </Suspense>

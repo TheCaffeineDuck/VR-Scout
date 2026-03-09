@@ -226,6 +226,62 @@ The current build uses Triangle Splatting v1 exports which produce poor visual q
 
 ---
 
+## Gaussian Splat Pipeline (Spark Renderer)
+
+The viewer now uses **Spark Gaussian Splatting** (`@sparkjsdev/spark@0.1.10`) for SPZ scene files, replacing the earlier GLB mesh pipeline.
+
+### Coordinate System Conventions
+
+Scenes have a `coordinateSystem` field on `VirtualTour`:
+
+| Source | Convention | `coordinateSystem` | Rotation Applied |
+|--------|-----------|-------------------|-----------------|
+| INRIA 3DGS (raw COLMAP) | OpenCV (Y-down, Z-forward) | `'opencv'` (default) | 180° X rotation via `quaternion.set(1,0,0,0)` |
+| Nerfstudio Splatfacto | OpenGL (Y-up, Z-back) | `'opengl'` | None (already correct for Three.js) |
+
+The `scene-loader.ts` applies rotation conditionally based on `LoadSplatOptions.coordinateSystem`. An optional `sceneRotation: [rx, ry, rz]` field allows per-scene Euler rotation overrides.
+
+### Scene Pipeline
+
+```
+DJI Capture → COLMAP (SIMPLE_RADIAL + exhaustive) → Nerfstudio Splatfacto → PLY export → SPZ conversion (scripts/ply_to_spz.py)
+```
+
+- `ply_to_spz.py` reorders SH coefficients from INRIA channel-major `(N, 3, K)` to SPZ coefficient-major `(N, K, 3)`
+- SPZ files preserve SH degree 3 (45 coefficients per splat) for view-dependent color
+- No coordinate transform in conversion — raw PLY data preserved
+
+### Dev Scenes (useTour.ts)
+
+Built-in scenes in `DEV_SCENES` record, served from `public/scenes/`:
+
+| Scene | File | Splats | Size | Coord System |
+|-------|------|--------|------|-------------|
+| `outdoor_rooftop` | outdoor_rooftop.spz | 1,134,961 | 71 MB | `opengl` |
+| `room` | room.spz | 973,000 | 38 MB | `opencv` (default) |
+| `garden` | garden.spz | 1,600,000 | 153 MB | `opencv` (default) |
+
+### Performance Characteristics (Desktop)
+
+Tested with outdoor_rooftop.spz (1.1M splats):
+- **Load time**: ~1.4s
+- **FPS**: 120 avg / 112 min (well above 60 FPS target)
+- **Draw calls**: 1
+- **JS Heap**: ~109 MB
+- **Renderer**: antialias:false, NoToneMapping, pixelRatio clamped to min(devicePixelRatio, 2)
+
+### Tool Compatibility
+
+SplatMesh has a native `raycast()` method (world-transform aware, near/far clipping) — all click-based tools work:
+- Measurement tool: raycast → surface points → distance
+- Annotation tool: raycast → anchor point
+- Laser pointer: raycast → intersection point
+- Screenshot: `canvas.toDataURL()` after forced render (preserveDrawingBuffer not required)
+- Sun path: DirectionalLight in scene graph, not splat-dependent
+- First-person controls: DOM event listeners, independent of scene type
+
+---
+
 ## Notes for Claude Code
 
 - The project uses Vite + React 19 + TypeScript strict mode
@@ -235,3 +291,5 @@ The current build uses Triangle Splatting v1 exports which produce poor visual q
 - The project likely has existing patterns for how hooks consume renderer/scene state — follow those patterns rather than inventing new ones
 - If a file referenced in "Read first" doesn't exist, note it and proceed with creating the new implementation
 - Python scripts use standard libraries + trimesh. If trimesh is not installed in the project's Python env, note it but don't try to install (that's the user's responsibility)
+- Spark Gaussian Splat renderer: `@sparkjsdev/spark@0.1.10` — SplatMesh is an Object3D (not Mesh), has custom raycast
+- When adding new dev scenes, set `coordinateSystem: 'opengl'` for Nerfstudio output, leave default for INRIA/COLMAP

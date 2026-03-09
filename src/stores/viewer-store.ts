@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type * as THREE from 'three'
-import type { SceneLOD } from '@/types/scene'
+import type { SceneLOD, SplatCoordinateSystem } from '@/types/scene'
 import { disposeScene } from '@/lib/scene-loader'
 
 export type LODLevel = 'preview' | 'medium' | 'high'
@@ -18,6 +18,8 @@ export interface ViewerState {
   sceneGroup: THREE.Group | null
   sceneBounds: { min: [number, number, number]; max: [number, number, number] } | null
   spawnPoint: { position: [number, number, number]; rotation: [number, number, number] }
+  splatCoordinateSystem: SplatCoordinateSystem
+  splatSceneRotation: [number, number, number] | null
 
   // Loading
   loading: boolean
@@ -45,6 +47,8 @@ export interface ViewerState {
   setSceneGroup: (group: THREE.Group | null) => void
   setSceneBounds: (bounds: { min: [number, number, number]; max: [number, number, number] } | null) => void
   setSpawnPoint: (spawn: { position: [number, number, number]; rotation: [number, number, number] }) => void
+  setSplatCoordinateSystem: (cs: SplatCoordinateSystem) => void
+  setSplatSceneRotation: (rot: [number, number, number] | null) => void
   setLoading: (loading: boolean) => void
   setLoadProgress: (progress: number) => void
   setLoadStage: (stage: string) => void
@@ -65,6 +69,8 @@ export const useViewerStore = create<ViewerState>((set) => ({
   sceneGroup: null,
   sceneBounds: null,
   spawnPoint: { position: [0, 1.6, 5], rotation: [0, 0, 0] },
+  splatCoordinateSystem: 'opencv' as SplatCoordinateSystem,
+  splatSceneRotation: null,
 
   loading: false,
   loadProgress: 0,
@@ -95,6 +101,8 @@ export const useViewerStore = create<ViewerState>((set) => ({
     }),
   setSceneBounds: (bounds) => set({ sceneBounds: bounds }),
   setSpawnPoint: (spawn) => set({ spawnPoint: spawn }),
+  setSplatCoordinateSystem: (cs) => set({ splatCoordinateSystem: cs }),
+  setSplatSceneRotation: (rot) => set({ splatSceneRotation: rot }),
   setLoading: (loading) => set({ loading }),
   setLoadProgress: (progress) => set({ loadProgress: progress }),
   setLoadStage: (stage) => set({ loadStage: stage }),

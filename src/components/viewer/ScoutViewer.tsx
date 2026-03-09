@@ -112,12 +112,19 @@ export function ScoutViewer({
   const [sessionBanner, setSessionBanner] = useState<string | null>(null)
   const [sessionAutoConnected, setSessionAutoConnected] = useState(false)
 
+  const setSplatCoordinateSystem = useViewerStore((s) => s.setSplatCoordinateSystem)
+  const setSplatSceneRotation = useViewerStore((s) => s.setSplatSceneRotation)
+  const setSpawnPoint = useViewerStore((s) => s.setSpawnPoint)
+
   // Load scene from tour data
   useEffect(() => {
     if (tour) {
+      setSplatCoordinateSystem(tour.coordinateSystem ?? 'opencv')
+      setSplatSceneRotation(tour.sceneRotation ?? null)
+      setSpawnPoint(tour.spawnPoint)
       setSceneLOD(tour.splatUrls)
     }
-  }, [tour, setSceneLOD])
+  }, [tour, setSceneLOD, setSplatCoordinateSystem, setSplatSceneRotation, setSpawnPoint])
 
   // Open comparison viewer when compare tool is selected
   useEffect(() => {

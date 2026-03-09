@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
-import { loadSplatScene, disposeScene } from '@/lib/scene-loader'
+import { loadSplatScene, disposeScene, type LoadSplatOptions } from '@/lib/scene-loader'
 import { useViewerStore } from '@/stores/viewer-store'
 import type { SceneLOD } from '@/types/scene'
 import type { LODLevel } from '@/stores/viewer-store'
@@ -9,10 +9,11 @@ import type { LODLevel } from '@/stores/viewer-store'
 /**
  * Scene loading hook for Spark Gaussian Splat scenes.
  *
- * Spark scenes (.spz) are pre-oriented and pre-scaled by the capture
- * pipeline — no PCA auto-level, outlier culling, or geometry merging
- * needed. The hook loads the splat scene, computes bounds, positions
- * the camera, and swaps it into the R3F scene graph.
+ * SPZ data is stored in raw OpenCV coordinates. The scene-loader applies
+ * a 180° X rotation on the SplatMesh (OpenCV→OpenGL) and provides
+ * world-space bounding boxes. This hook positions the camera at the
+ * world-space origin (COLMAP reconstruction center) and swaps scenes
+ * into the R3F scene graph.
  *
  * Progressive LOD loading: loads preview first for fast first paint,
  * then swaps in high quality in the background.
@@ -20,6 +21,9 @@ import type { LODLevel } from '@/stores/viewer-store'
 export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
   const sceneUrl = useViewerStore((s) => s.sceneUrl)
   const sceneLOD = useViewerStore((s) => s.sceneLOD)
+  const splatCoordinateSystem = useViewerStore((s) => s.splatCoordinateSystem)
+  const splatSceneRotation = useViewerStore((s) => s.splatSceneRotation)
+  const spawnPoint = useViewerStore((s) => s.spawnPoint)
   const setSceneGroup = useViewerStore((s) => s.setSceneGroup)
   const setSceneBounds = useViewerStore((s) => s.setSceneBounds)
   const setCurrentLOD = useViewerStore((s) => s.setCurrentLOD)
@@ -33,8 +37,10 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
 
   const placeScene = useCallback(
     (scene: THREE.Group, positionCamera: boolean) => {
-      // Compute bounds from loaded splat
-      const box = new THREE.Box3().setFromObject(scene)
+      // Use pre-computed world-space splat bounds (Box3.setFromObject doesn't
+      // work for SplatMesh because positions are in GPU textures)
+      const box = (scene.userData.splatBounds as THREE.Box3) ??
+        new THREE.Box3().setFromObject(scene)
       const size = new THREE.Vector3()
       box.getSize(size)
       const center = new THREE.Vector3()
@@ -45,10 +51,22 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       setSceneBounds({ min, max })
 
       if (positionCamera) {
-        // Place camera at standing eye height (1.7m above floor)
-        const eyeY = Math.max(box.min.y + 1.7, center.y)
-        camera.position.set(center.x, eyeY, center.z)
-        camera.lookAt(center.x, eyeY, center.z - 1)
+        const [sx, sy, sz] = spawnPoint.position
+        const hasExplicitSpawn = sx !== 0 || sy !== 0 || sz !== 0
+
+        if (hasExplicitSpawn) {
+          camera.position.set(sx, sy, sz)
+          // Look toward -Z (Three.js forward direction) from spawn position
+          camera.lookAt(sx, sy, sz - 1)
+        } else {
+          // Auto-compute spawn from world-space bounds:
+          // Stand at the horizontal center, 1.6m above the floor (bbox min Y).
+          // Offset floor slightly inward (5% of height) to avoid outlier splats.
+          const floorY = box.min.y + size.y * 0.05
+          camera.position.set(center.x, floorY + 1.6, center.z)
+          // Look toward scene center (slightly up from floor)
+          camera.lookAt(center.x, center.y, center.z)
+        }
 
         // Far plane from bounding box diagonal
         const diagonal = size.length()
@@ -58,9 +76,11 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
           camera.updateProjectionMatrix()
         }
 
+        const p = camera.position
         console.log(
-          `[placeScene] Camera at (${center.x.toFixed(1)}, ${eyeY.toFixed(1)}, ${center.z.toFixed(1)}), ` +
-          `size=(${size.x.toFixed(1)}, ${size.y.toFixed(1)}, ${size.z.toFixed(1)}), ` +
+          `[placeScene] Camera at ${hasExplicitSpawn ? 'spawn' : 'auto'} ` +
+          `(${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}), ` +
+          `bounds=(${size.x.toFixed(1)}, ${size.y.toFixed(1)}, ${size.z.toFixed(1)}), ` +
           `far=${(diagonal * 2).toFixed(0)}`,
         )
       }
@@ -85,7 +105,7 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
 
       setSceneGroup(scene)
     },
-    [camera, groupRef, setSceneBounds, setSceneGroup],
+    [camera, groupRef, setSceneBounds, setSceneGroup, spawnPoint],
   )
 
   // Progressive LOD loading (SceneLOD object with preview/medium/high URLs)
@@ -94,7 +114,13 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
 
     let cancelled = false
 
+    const loadOpts: LoadSplatOptions = {
+      coordinateSystem: splatCoordinateSystem,
+      sceneRotation: splatSceneRotation ?? undefined,
+    }
+
     async function loadProgressive(lod: SceneLOD) {
+      const t0 = performance.now()
       setLoading(true)
       setLoadProgress(0)
       setError(null)
@@ -106,7 +132,7 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
           setLoadStage('Loading preview...')
           const preview = await loadSplatScene(previewUrl, (p) => {
             if (!cancelled) setLoadProgress(p * 0.3) // 0-30%
-          })
+          }, loadOpts)
           if (cancelled) {
             disposeScene(preview)
             return
@@ -122,17 +148,21 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
 
       // Step 2: Load high-quality LOD in background
       const highUrl = lod.high
+      const hasPreview = !!previewUrl
       if (highUrl && !cancelled) {
         try {
-          setLoadStage('Loading high quality...')
+          setLoadStage(hasPreview ? 'Loading high quality...' : 'Loading scene...')
           const highScene = await loadSplatScene(highUrl, (p) => {
-            if (!cancelled) setLoadProgress(0.3 + p * 0.7) // 30-100%
-          })
+            if (!cancelled) {
+              // Full 0-100% range when no preview, otherwise 30-100%
+              setLoadProgress(hasPreview ? 0.3 + p * 0.7 : p)
+            }
+          }, loadOpts)
           if (cancelled) {
             disposeScene(highScene)
             return
           }
-          placeScene(highScene, false)
+          placeScene(highScene, !hasPreview)
           setCurrentLOD('high')
           setLoadStage('High quality loaded')
         } catch (err) {
@@ -142,6 +172,8 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       }
 
       if (!cancelled) {
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(2)
+        console.log(`[useScene] Total load time: ${elapsed}s`)
         setLoading(false)
         setLoadStage('Complete')
         setLoadProgress(1)
@@ -153,13 +185,18 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
     return () => {
       cancelled = true
     }
-  }, [sceneLOD, placeScene, setCurrentLOD, setLoading, setLoadProgress, setLoadStage, setError])
+  }, [sceneLOD, splatCoordinateSystem, splatSceneRotation, placeScene, setCurrentLOD, setLoading, setLoadProgress, setLoadStage, setError])
 
   // Single URL loading (backwards compatible)
   useEffect(() => {
     if (!sceneUrl || sceneLOD) return
 
     let cancelled = false
+
+    const loadOpts: LoadSplatOptions = {
+      coordinateSystem: splatCoordinateSystem,
+      sceneRotation: splatSceneRotation ?? undefined,
+    }
 
     async function loadSingle() {
       setLoading(true)
@@ -170,7 +207,7 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
       try {
         const scene = await loadSplatScene(sceneUrl!, (progress) => {
           if (!cancelled) setLoadProgress(progress)
-        })
+        }, loadOpts)
 
         if (cancelled) {
           disposeScene(scene)
@@ -195,7 +232,7 @@ export function useScene(groupRef: React.RefObject<THREE.Group | null>) {
     return () => {
       cancelled = true
     }
-  }, [sceneUrl, sceneLOD, placeScene, setCurrentLOD, setLoading, setLoadProgress, setLoadStage, setError])
+  }, [sceneUrl, sceneLOD, splatCoordinateSystem, splatSceneRotation, placeScene, setCurrentLOD, setLoading, setLoadProgress, setLoadStage, setError])
 
   // Cleanup on unmount
   useEffect(() => {
