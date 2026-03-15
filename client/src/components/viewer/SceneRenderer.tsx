@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, Component } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo, Component } from 'react';
 import type { ReactNode } from 'react';
 import { Canvas, useThree, useFrame, extend } from '@react-three/fiber';
 import { SplatMesh, SparkRenderer } from '@sparkjsdev/spark';
@@ -7,6 +7,15 @@ import * as THREE from 'three';
 import type { ViewerProps } from '../../types/scene.ts';
 import { FPSMeasure, FPSCounter } from './FPSCounter.tsx';
 import './SceneRenderer.css';
+
+// ---------- Mobile Detection ----------
+
+const DEFAULT_MOBILE_BUDGET = 300_000;
+
+function detectMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  return navigator.maxTouchPoints > 0 || window.innerWidth < 768;
+}
 
 // Register OrbitControls with R3F so we can use <orbitControls> in JSX
 extend({ OrbitControls });
@@ -88,6 +97,8 @@ interface SparkSceneProps {
   showFloorGrid?: boolean;
   floorYOffset?: number;
   floorYRotation?: number;
+  /** Maximum number of Gaussians to render (used for mobile budget capping). */
+  maxGaussians?: number;
 }
 
 function SparkScene({
@@ -100,6 +111,7 @@ function SparkScene({
   showFloorGrid = false,
   floorYOffset = 0,
   floorYRotation = 0,
+  maxGaussians,
 }: SparkSceneProps) {
   const { gl, camera, scene } = useThree();
   const sparkRef = useRef<SparkRenderer | null>(null);
@@ -130,7 +142,12 @@ function SparkScene({
   useEffect(() => {
     let disposed = false;
 
-    const mesh = new SplatMesh({ url: spzUrl });
+    const splatOpts: { url: string; maxSplats?: number } = { url: spzUrl };
+    if (maxGaussians != null) {
+      splatOpts.maxSplats = maxGaussians;
+      console.log(`[SceneRenderer] Mobile budget: capping Gaussians at ${maxGaussians}`);
+    }
+    const mesh = new SplatMesh(splatOpts);
     splatRef.current = mesh;
     scene.add(mesh);
 
@@ -234,6 +251,7 @@ function FloorGrid({
 
 export function SceneRenderer({
   sceneConfig,
+  enableVR,
   enableControls = true,
   onLoad,
   onError,
@@ -247,6 +265,15 @@ export function SceneRenderer({
   floorYRotation?: number;
 }) {
   const [fps, setFps] = useState(0);
+  const isMobile = useMemo(() => detectMobile(), []);
+
+  // On mobile, cap Gaussians to the scene's mobileBudget or the default 300K
+  const maxGaussians = isMobile
+    ? (sceneConfig.mobileBudget ?? DEFAULT_MOBILE_BUDGET)
+    : undefined;
+
+  // Disable VR on mobile unless explicitly overridden
+  const vrEnabled = enableVR ?? !isMobile;
 
   const handleFps = useCallback((value: number) => {
     setFps(value);
@@ -255,9 +282,11 @@ export function SceneRenderer({
   // Suppress unused var warning — onProgress is part of ViewerProps contract
   // but SplatMesh constructor in Spark 0.1.10 does not expose download progress.
   void onProgress;
+  // vrEnabled will be used when VR button is wired up
+  void vrEnabled;
 
   return (
-    <div className="scene-renderer">
+    <div className="scene-renderer" data-mobile={isMobile || undefined}>
       <ViewerErrorBoundary onError={onError}>
         <Canvas
           gl={{
@@ -266,11 +295,14 @@ export function SceneRenderer({
             outputColorSpace: THREE.LinearSRGBColorSpace,
           }}
           camera={{ position: [0, 1.6, 5], fov: 60 }}
+          // Lower DPR on mobile for performance
+          dpr={isMobile ? 1 : Math.min(window.devicePixelRatio, 2)}
         >
           <SparkScene
             spzUrl={sceneConfig.spzUrl}
             alignmentUrl={sceneConfig.alignmentUrl}
             maxStdDev={sceneConfig.maxStdDev ?? Math.sqrt(5)}
+            maxGaussians={maxGaussians}
             onLoad={onLoad}
             onError={onError}
             enableControls={enableControls}
