@@ -26,11 +26,43 @@ fi
 SCENE_ID="$1"
 RESUME_FROM=0
 
+# CLI overrides (set by pipeline_service.py, fallback to config file below)
+CLI_CAMERA_MODEL=""
+CLI_MATCHER=""
+CLI_ITERATIONS=""
+CLI_SH_DEGREE=""
+CLI_DATA_FACTOR=""
+CLI_FRAME_FPS=""
+
 shift
 while [ $# -gt 0 ]; do
   case "$1" in
     --resume-from)
       RESUME_FROM="$2"
+      shift 2
+      ;;
+    --camera-model)
+      CLI_CAMERA_MODEL="$2"
+      shift 2
+      ;;
+    --matcher)
+      CLI_MATCHER="$2"
+      shift 2
+      ;;
+    --iterations)
+      CLI_ITERATIONS="$2"
+      shift 2
+      ;;
+    --sh-degree)
+      CLI_SH_DEGREE="$2"
+      shift 2
+      ;;
+    --data-factor)
+      CLI_DATA_FACTOR="$2"
+      shift 2
+      ;;
+    --frame-fps)
+      CLI_FRAME_FPS="$2"
       shift 2
       ;;
     *)
@@ -81,6 +113,14 @@ else
   SOR_INTENSITY=3
   COMPRESSION_LEVEL=5
 fi
+
+# Apply CLI overrides (from pipeline_service.py) over config file defaults
+[ -n "$CLI_CAMERA_MODEL" ] && CAMERA_MODEL="$CLI_CAMERA_MODEL"
+[ -n "$CLI_MATCHER" ] && MATCHER="$CLI_MATCHER"
+[ -n "$CLI_ITERATIONS" ] && TRAINING_ITERATIONS="$CLI_ITERATIONS"
+[ -n "$CLI_SH_DEGREE" ] && SH_DEGREE="$CLI_SH_DEGREE"
+[ -n "$CLI_DATA_FACTOR" ] && DATA_FACTOR="$CLI_DATA_FACTOR"
+[ -n "$CLI_FRAME_FPS" ] && FRAME_FPS="$CLI_FRAME_FPS"
 
 mkdir -p "$FRAMES_DIR" "$SPARSE_DIR" "$ALIGNED_DIR" "$OUTPUT_DIR" "$LOGS_DIR"
 

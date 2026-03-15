@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     db_path: str = "vr_scout.db"
     scenes_dir: str = "scenes"
+    raw_dir: str = "raw"
+    scripts_dir: str = "scripts"
     cors_origins: list[str] = ["http://localhost:3000"]
     upload_chunk_size: int = 5 * 1024 * 1024  # 5 MB
     max_upload_size: int = 10 * 1024 * 1024 * 1024  # 10 GB
@@ -22,6 +24,14 @@ class Settings(BaseSettings):
     @property
     def scenes_path(self) -> Path:
         return Path(self.scenes_dir)
+
+    @property
+    def raw_path(self) -> Path:
+        return Path(self.raw_dir)
+
+    @property
+    def scripts_path(self) -> Path:
+        return Path(self.scripts_dir)
 
     @property
     def db_file(self) -> Path:

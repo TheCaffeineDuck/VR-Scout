@@ -58,9 +58,9 @@ HANG_THRESHOLDS: dict[int, tuple[float, float]] = {
 HANG_CHECK_INTERVAL_SECONDS = 5.0
 
 
-def _get_process_sh_path(scene_id: str) -> str:
-    """Get the path to process.sh for a scene."""
-    return str(settings.scenes_path / scene_id / "process.sh")
+def _get_process_sh_path() -> str:
+    """Get the path to scripts/process.sh."""
+    return str(settings.scripts_path / "process.sh")
 
 
 def update_step_tracking(scene_id: str, step_number: int) -> None:
@@ -188,10 +188,10 @@ async def start_pipeline(
         await create_step(run_id, step_number, step_name)
 
     # Build command args — NEVER use shell=True
-    process_sh = _get_process_sh_path(scene_id)
+    process_sh = _get_process_sh_path()
     cmd_args = [
         process_sh,
-        "--scene-id", scene_id,
+        scene_id,  # positional arg expected by process.sh
         "--camera-model", config.camera_model,
         "--matcher", config.matcher,
         "--iterations", str(config.training_iterations),
@@ -240,7 +240,7 @@ async def start_pipeline(
 
     except FileNotFoundError:
         await update_run_status(run_id, "failed")
-        raise RuntimeError(f"process.sh not found for scene {scene_id}")
+        raise RuntimeError(f"process.sh not found at {process_sh}")
 
     return run_id
 

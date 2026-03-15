@@ -146,11 +146,11 @@ async def upload_chunk(
         )
     _upload_totals[scene_id] = current_total
 
-    # Ensure directories exist — use sanitize_path for safety
-    scene_dir = sanitize_path(settings.scenes_path, scene_id)
-    raw_dir = scene_dir / "raw"
-    chunks_dir = scene_dir / "chunks"
+    # Ensure directories exist
+    # Save to project-root raw/ directory (where process.sh expects it)
+    raw_dir = settings.raw_path
     raw_dir.mkdir(parents=True, exist_ok=True)
+    chunks_dir = sanitize_path(settings.scenes_path, scene_id) / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
     # Write chunk to temp file
@@ -160,7 +160,7 @@ async def upload_chunk(
     # Check if all chunks are present
     received = len(list(chunks_dir.glob("chunk_*")))
     if received == total_chunks:
-        # Reassemble
+        # Reassemble into project-root raw/{scene_id}.mp4
         output_path = raw_dir / f"{scene_id}.mp4"
         with open(output_path, "wb") as out:
             for i in range(total_chunks):

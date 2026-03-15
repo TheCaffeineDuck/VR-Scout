@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-server",
+      "runtimeExecutable": "wsl",
+      "runtimeArgs": ["-d", "Ubuntu-22.04", "--", "bash", "-ic", "conda activate splat && cd /mnt/c/Users/aaron/Desktop/vr-scout-v3 && python -m uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload"],
+      "port": 8000
+    },
+    {
+      "name": "client",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd client && npx vite --port 3000"],
+      "port": 3000
+    }
+  ]
+}
