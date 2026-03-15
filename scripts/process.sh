@@ -33,6 +33,7 @@ CLI_ITERATIONS=""
 CLI_SH_DEGREE=""
 CLI_DATA_FACTOR=""
 CLI_FRAME_FPS=""
+CLI_SCENE_CHANGE_THRESHOLD=""
 
 shift
 while [ $# -gt 0 ]; do
@@ -63,6 +64,10 @@ while [ $# -gt 0 ]; do
       ;;
     --frame-fps)
       CLI_FRAME_FPS="$2"
+      shift 2
+      ;;
+    --scene-change-threshold)
+      CLI_SCENE_CHANGE_THRESHOLD="$2"
       shift 2
       ;;
     *)
@@ -121,6 +126,7 @@ fi
 [ -n "$CLI_SH_DEGREE" ] && SH_DEGREE="$CLI_SH_DEGREE"
 [ -n "$CLI_DATA_FACTOR" ] && DATA_FACTOR="$CLI_DATA_FACTOR"
 [ -n "$CLI_FRAME_FPS" ] && FRAME_FPS="$CLI_FRAME_FPS"
+[ -n "$CLI_SCENE_CHANGE_THRESHOLD" ] && SCENE_CHANGE_THRESHOLD="$CLI_SCENE_CHANGE_THRESHOLD"
 
 mkdir -p "$FRAMES_DIR" "$SPARSE_DIR" "$ALIGNED_DIR" "$OUTPUT_DIR" "$LOGS_DIR"
 
@@ -218,10 +224,20 @@ fi
 
 # ─── Step 1: Frame Extraction ────────────────────────────────────
 if [ "$RESUME_FROM" -le 1 ]; then
+  # Build video filter: always downsample to FRAME_FPS.
+  # If SCENE_CHANGE_THRESHOLD > 0, also apply scene-change detection.
+  if [ "$(echo "$SCENE_CHANGE_THRESHOLD > 0" | bc -l)" -eq 1 ]; then
+    VF_FILTER="fps=$FRAME_FPS,select='gt(scene\,$SCENE_CHANGE_THRESHOLD)'"
+    VSYNC_FLAG="-vsync vfr"
+  else
+    VF_FILTER="fps=$FRAME_FPS"
+    VSYNC_FLAG=""
+  fi
+
   run_step 1 "frame_extraction" \
     ffmpeg -i "$RAW_VIDEO" \
-      -vf "fps=$FRAME_FPS,select='gt(scene\,$SCENE_CHANGE_THRESHOLD)'" \
-      -vsync vfr -q:v 2 \
+      -vf "$VF_FILTER" \
+      $VSYNC_FLAG -q:v 2 \
       "$FRAMES_DIR/frame_%05d.jpg"
 
   # Validation gate: frame count
@@ -320,20 +336,30 @@ if [ "$RESUME_FROM" -le 5 ]; then
 fi
 
 # ─── Step 6: Validation ──────────────────────────────────────────
+# NOTE: Do NOT use run_step here — validate_colmap.py uses exit codes
+# 0=pass, 1=warning, 2=blocked. run_step would treat 1/2 as failures.
 if [ "$RESUME_FROM" -le 6 ]; then
-  run_step 6 "validation" \
-    python3 "$PROJECT_ROOT/scripts/validate_colmap.py" \
-      --sparse_path "$ALIGNED_DIR" \
-      --original_sparse_path "$BEST_MODEL" \
-      --image_path "$FRAMES_DIR" \
-      --output_json "$SCENE_DIR/validation_report.json" \
-      --min_registration_rate 0.9
+  write_status 6 "validation" "running"
+  VALIDATION_LOG="$LOGS_DIR/step_6_validation.log"
+  echo "=== Step 6: validation ===" | tee "$VALIDATION_LOG"
 
+  python3 "$PROJECT_ROOT/scripts/validate_colmap.py" \
+    --sparse_path "$ALIGNED_DIR" \
+    --original_sparse_path "$BEST_MODEL" \
+    --image_path "$FRAMES_DIR" \
+    --output_json "$SCENE_DIR/validation_report.json" \
+    --min_registration_rate 0.9 >> "$VALIDATION_LOG" 2>&1
   VALIDATION_EXIT=$?
+
   if [ "$VALIDATION_EXIT" -eq 2 ]; then
     write_status 6 "validation" "blocked" \
       "Registration rate below 50%. Re-shoot recommended. See validation_report.json."
     exit 1
+  elif [ "$VALIDATION_EXIT" -eq 1 ]; then
+    write_status 6 "validation" "warning" \
+      "Validation passed with warnings. See validation_report.json."
+  else
+    write_status 6 "validation" "completed"
   fi
 
   # Pipeline pauses here — user must confirm via UI before training
@@ -367,6 +393,7 @@ if [ "$RESUME_FROM" -le 7 ]; then
     --data_dir "$GSPLAT_DATA_DIR" \
     --result_dir "$OUTPUT_DIR" \
     --use_bilateral_grid \
+    --disable-viewer \
     --max_steps "$TRAINING_ITERATIONS" \
     --sh_degree "$SH_DEGREE" \
     --data_factor "$DATA_FACTOR" \
@@ -391,6 +418,21 @@ if [ "$RESUME_FROM" -le 7 ]; then
     exit $TRAIN_EXIT
   fi
 
+  # Convert .pt checkpoint to PLY format for 3dgsconverter
+  LATEST_CKPT=$(ls -t "$OUTPUT_DIR/ckpts/"ckpt_*_rank0.pt 2>/dev/null | head -1)
+  if [ -z "$LATEST_CKPT" ]; then
+    write_status 7 "training" "failed" "No checkpoint found after training. Check step_7_training.log."
+    exit 1
+  fi
+
+  echo "Converting checkpoint to PLY: $LATEST_CKPT -> $OUTPUT_DIR/point_cloud.ply"
+  python3 "$PROJECT_ROOT/scripts/ckpt_to_ply.py" "$LATEST_CKPT" "$OUTPUT_DIR/point_cloud.ply" >> "$TRAIN_LOG" 2>&1
+  CKPT_EXIT=$?
+  if [ $CKPT_EXIT -ne 0 ]; then
+    write_status 7 "training" "failed" "Checkpoint to PLY conversion failed (exit $CKPT_EXIT). Check step_7_training.log."
+    exit $CKPT_EXIT
+  fi
+
   write_status 7 "training" "completed" "Training finished. Output: $OUTPUT_DIR/point_cloud.ply"
 fi
 
@@ -398,8 +440,9 @@ fi
 if [ "$RESUME_FROM" -le 8 ]; then
   run_step 8 "conversion" \
     3dgsconverter \
-      -i "$OUTPUT_DIR/point_cloud.ply" \
-      -o "$OUTPUT_DIR/scene.spz" \
+      --input "$OUTPUT_DIR/point_cloud.ply" \
+      --output "$OUTPUT_DIR/scene.spz" \
+      --target_format spz \
       --min_opacity "$MIN_OPACITY" \
       --sor_intensity "$SOR_INTENSITY" \
       --compression_level "$COMPRESSION_LEVEL"

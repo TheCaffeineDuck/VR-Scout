@@ -190,10 +190,11 @@ export function cancelPipeline(sceneId: string): Promise<PipelineActionResponse>
 export function resumePipeline(
   sceneId: string,
   step: number,
+  config: PipelineConfig,
 ): Promise<PipelineActionResponse> {
   return request<PipelineActionResponse>(
     `/pipeline/resume/${encodeURIComponent(sceneId)}/${step}`,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify(config) },
   );
 }
 

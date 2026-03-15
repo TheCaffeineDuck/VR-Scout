@@ -78,6 +78,13 @@ async def _poll_loop(scene_id: str) -> None:
                     "Status change for scene %s: step=%d status=%s",
                     scene_id, status.current_step, status.status,
                 )
+
+                # Update hang detection timer on step transitions
+                previous_step = previous.get("current_step") if previous else None
+                if status.current_step != previous_step:
+                    from ..services.pipeline_service import update_step_tracking
+                    update_step_tracking(scene_id, status.current_step)
+
             except (KeyError, ValueError):
                 logger.warning("Invalid status.json content for scene %s", scene_id)
 

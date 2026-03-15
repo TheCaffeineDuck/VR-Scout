@@ -30,14 +30,15 @@ _step_tracking: dict[str, tuple[float, int]] = {}
 
 # Pipeline step definitions
 PIPELINE_STEPS = [
-    (1, "extract_frames"),
-    (2, "colmap_feature_extract"),
-    (3, "colmap_matching"),
-    (4, "colmap_mapper"),
-    (5, "validate_colmap"),
-    (6, "alignment"),
+    (1, "frame_extraction"),
+    (2, "feature_extraction"),
+    (3, "matching"),
+    (4, "mapping"),
+    (5, "gravity_alignment"),
+    (6, "validation"),
     (7, "training"),
-    (8, "export_spz"),
+    (8, "conversion"),
+    (9, "alignment"),
 ]
 
 # Hang detection thresholds (seconds) per step index (0-based).
@@ -53,6 +54,7 @@ HANG_THRESHOLDS: dict[int, tuple[float, float]] = {
     6: (30, 100),          # validation: warn 30s, kill 100s
     7: (21600, 43200),     # training 30K: warn 360min, kill 720min
     8: (900, 3000),        # conversion: warn 15min, kill 50min
+    9: (15, 50),           # alignment json generation: warn 15s, kill 50s
 }
 
 HANG_CHECK_INTERVAL_SECONDS = 5.0
@@ -220,6 +222,7 @@ async def start_pipeline(
         "--sh-degree", str(config.sh_degree),
         "--data-factor", str(config.data_factor),
         "--frame-fps", str(config.frame_fps),
+        "--scene-change-threshold", str(config.scene_change_threshold),
     ]
 
     if resume_from is not None:
@@ -295,14 +298,21 @@ async def _monitor_process(
         status = "completed" if process.returncode == 0 else "failed"
         await update_run_status(run_id, status)
 
+        # Read actual step from status.json rather than assuming final step
+        from .status_watcher import read_status_file
+        last_status = read_status_file(scene_id)
+        current_step = last_status.current_step if last_status else len(PIPELINE_STEPS)
+        step_name = last_status.step_name if last_status else PIPELINE_STEPS[-1][1]
+        message = last_status.message if last_status and status == "failed" else f"Pipeline {status} (exit code {process.returncode})"
+
         await manager.broadcast(scene_id, {
             "type": "status",
             "data": {
                 "scene_id": scene_id,
-                "current_step": len(PIPELINE_STEPS),
-                "step_name": PIPELINE_STEPS[-1][1],
+                "current_step": current_step,
+                "step_name": step_name,
                 "status": status,
-                "message": f"Pipeline {status} (exit code {process.returncode})",
+                "message": message,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "pid": process.pid or 0,
             },
@@ -331,6 +341,34 @@ async def cancel_pipeline(scene_id: str) -> bool:
 
     try:
         if sys.platform == "win32":
+            # On Windows, process.kill() only kills the wsl.exe adapter,
+            # leaving child processes (bash, python, colmap) running inside
+            # WSL. We need to kill the process group inside WSL by PID.
+            # The pipeline process writes its PID to status.json.
+            from .status_watcher import read_status_file
+            status = read_status_file(scene_id)
+            wsl_pid = status.pid if status and status.pid else None
+            if wsl_pid:
+                try:
+                    kill_proc = await asyncio.create_subprocess_exec(
+                        "wsl", "-d", "Ubuntu-22.04", "--",
+                        "kill", "-TERM", "--", f"-{wsl_pid}",
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    await asyncio.wait_for(kill_proc.wait(), timeout=5.0)
+                except Exception:
+                    # Fallback: kill by PID directly
+                    try:
+                        kill_proc = await asyncio.create_subprocess_exec(
+                            "wsl", "-d", "Ubuntu-22.04", "--",
+                            "kill", "-9", str(wsl_pid),
+                            stdout=asyncio.subprocess.DEVNULL,
+                            stderr=asyncio.subprocess.DEVNULL,
+                        )
+                        await asyncio.wait_for(kill_proc.wait(), timeout=5.0)
+                    except Exception:
+                        pass
             process.kill()
         else:
             process.send_signal(signal.SIGTERM)

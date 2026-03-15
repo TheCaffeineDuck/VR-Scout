@@ -47,7 +47,7 @@ async def start_pipeline(
         raise
     except Exception as e:
         logger.exception("Pipeline start failed for scene %s", scene_id)
-        raise HTTPException(status_code=500, detail=str(e) or "Pipeline failed to start")
+        raise HTTPException(status_code=500, detail=str(e) or f"Pipeline failed to start ({type(e).__name__})")
 
 
 @router.post("/resume/{scene_id}/{step}")
@@ -127,9 +127,11 @@ async def get_logs(
     if step < 0 or step > 9:
         raise HTTPException(status_code=400, detail=f"Invalid step number: {step} (must be 0-9)")
 
-    log_path = sanitize_path(settings.scenes_path, scene_id) / "logs" / f"step_{step}.log"
-    if not log_path.exists():
+    logs_dir = sanitize_path(settings.scenes_path, scene_id) / "logs"
+    matches = sorted(logs_dir.glob(f"step_{step}_*.log")) if logs_dir.is_dir() else []
+    if not matches:
         raise HTTPException(status_code=404, detail=f"No log for step {step}")
+    log_path = matches[0]
 
     lines = log_path.read_text(encoding="utf-8").splitlines()
     total = len(lines)

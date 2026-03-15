@@ -34,7 +34,7 @@ export function PipelineMonitor() {
   const handleProceed = useCallback(async () => {
     try {
       setError(null);
-      await resumePipeline(sceneId, 7);
+      await resumePipeline(sceneId, 7, DEFAULT_PIPELINE_CONFIG);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to resume pipeline';
       setError(msg);
@@ -44,7 +44,7 @@ export function PipelineMonitor() {
   const handleRerun = useCallback(async () => {
     try {
       setError(null);
-      await resumePipeline(sceneId, 2);
+      await resumePipeline(sceneId, 2, DEFAULT_PIPELINE_CONFIG);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to rerun pipeline';
       setError(msg);
