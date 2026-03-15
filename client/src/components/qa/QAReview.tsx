@@ -16,6 +16,12 @@ export function QAReview() {
   const [scene, setScene] = useState<SceneConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Floor grid state — shared between FloorPlaneAdjuster and SceneRenderer
+  const [showFloorGrid, setShowFloorGrid] = useState(false);
+  const [floorYOffset, setFloorYOffset] = useState(0);
+  const [floorYRotation, setFloorYRotation] = useState(0);
+
+  // Overlay toggles
   const [showCameraPath, setShowCameraPath] = useState(true);
   const [showBoundingBox, setShowBoundingBox] = useState(false);
   const [showSparsePoints, setShowSparsePoints] = useState(false);
@@ -39,7 +45,14 @@ export function QAReview() {
   return (
     <div className="qa-review">
       <div className="qa-review__viewer">
-        <SceneRenderer sceneConfig={scene} enableVR enableControls />
+        <SceneRenderer
+          sceneConfig={scene}
+          enableVR
+          enableControls
+          showFloorGrid={showFloorGrid}
+          floorYOffset={floorYOffset}
+          floorYRotation={floorYRotation}
+        />
       </div>
 
       <div className="qa-review__panel">
@@ -56,15 +69,25 @@ export function QAReview() {
         </div>
 
         <div className="qa-review__section">
-          <FloorPlaneAdjuster sceneId={sceneId} />
+          <FloorPlaneAdjuster
+            sceneId={sceneId}
+            showFloorGrid={showFloorGrid}
+            onToggleFloorGrid={() => setShowFloorGrid((v) => !v)}
+            yOffset={floorYOffset}
+            yRotation={floorYRotation}
+            onYOffsetChange={setFloorYOffset}
+            onYRotationChange={setFloorYRotation}
+          />
         </div>
 
         <div className="qa-review__section">
           <h4>Overlays</h4>
           <ViewerControls
+            showFloorGrid={showFloorGrid}
             showCameraPath={showCameraPath}
             showBoundingBox={showBoundingBox}
             showSparsePoints={showSparsePoints}
+            onToggleFloorGrid={() => setShowFloorGrid((v) => !v)}
             onToggleCameraPath={() => setShowCameraPath((v) => !v)}
             onToggleBoundingBox={() => setShowBoundingBox((v) => !v)}
             onToggleSparsePoints={() => setShowSparsePoints((v) => !v)}

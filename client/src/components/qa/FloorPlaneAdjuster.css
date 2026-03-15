@@ -4,6 +4,23 @@
   color: var(--text-primary);
 }
 
+.floor-adjuster__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.floor-adjuster__toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .floor-adjuster__field {
   margin-bottom: 12px;
 }

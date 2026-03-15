@@ -4,14 +4,49 @@ import './FloorPlaneAdjuster.css';
 
 interface FloorPlaneAdjusterProps {
   sceneId: string;
+  showFloorGrid?: boolean;
+  onToggleFloorGrid?: () => void;
+  yOffset?: number;
+  yRotation?: number;
+  onYOffsetChange?: (value: number) => void;
+  onYRotationChange?: (value: number) => void;
   onApply?: () => void;
 }
 
-export function FloorPlaneAdjuster({ sceneId, onApply }: FloorPlaneAdjusterProps) {
-  const [yOffset, setYOffset] = useState(0);
-  const [yRotation, setYRotation] = useState(0);
+export function FloorPlaneAdjuster({
+  sceneId,
+  showFloorGrid = false,
+  onToggleFloorGrid,
+  yOffset: controlledYOffset,
+  yRotation: controlledYRotation,
+  onYOffsetChange,
+  onYRotationChange,
+  onApply,
+}: FloorPlaneAdjusterProps) {
+  const [internalYOffset, setInternalYOffset] = useState(0);
+  const [internalYRotation, setInternalYRotation] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Support both controlled and uncontrolled modes
+  const yOffset = controlledYOffset ?? internalYOffset;
+  const yRotation = controlledYRotation ?? internalYRotation;
+
+  const setYOffset = (value: number) => {
+    if (onYOffsetChange) {
+      onYOffsetChange(value);
+    } else {
+      setInternalYOffset(value);
+    }
+  };
+
+  const setYRotation = (value: number) => {
+    if (onYRotationChange) {
+      onYRotationChange(value);
+    } else {
+      setInternalYRotation(value);
+    }
+  };
 
   const handleReset = async () => {
     setSaving(true);
@@ -44,6 +79,15 @@ export function FloorPlaneAdjuster({ sceneId, onApply }: FloorPlaneAdjusterProps
   return (
     <div className="floor-adjuster">
       <h4>Alignment</h4>
+
+      <label className="floor-adjuster__toggle">
+        <input
+          type="checkbox"
+          checked={showFloorGrid}
+          onChange={onToggleFloorGrid}
+        />
+        Show Floor Grid
+      </label>
 
       <div className="floor-adjuster__field">
         <label>Y Offset (meters)</label>
