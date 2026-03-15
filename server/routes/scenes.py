@@ -1,13 +1,15 @@
 """Scene CRUD endpoints."""
 
 import json
+import shutil
 
 from fastapi import APIRouter, HTTPException, Request
 
 from ..config import settings
-from ..db import create_scene, get_scene, list_scenes, update_scene_config
+from ..db import create_scene, delete_scene, get_scene, list_scenes, update_scene_config
 from ..models.scene import AlignmentUpdate, SceneConfig, SceneCreate, SceneRow
 from ..security import general_limiter, sanitize_path, validate_scene_id
+from ..services import pipeline_service
 
 router = APIRouter()
 
@@ -103,3 +105,33 @@ async def get_cameras(scene_id: str, request: Request) -> dict[str, object]:
         )
     data = json.loads(cameras_path.read_text(encoding="utf-8"))
     return data  # type: ignore[no-any-return]
+
+
+@router.delete("/api/scenes/{scene_id}")
+async def delete_scene_endpoint(scene_id: str, request: Request) -> dict[str, str]:
+    """Delete a scene and all associated data."""
+    client_ip = request.client.host if request.client else "unknown"
+    general_limiter.check_or_raise(client_ip)
+    validate_scene_id(scene_id)
+
+    scene = await get_scene(scene_id)
+    if scene is None:
+        raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
+
+    if pipeline_service.is_running(scene_id):
+        raise HTTPException(status_code=409, detail="Cannot delete scene while pipeline is running")
+
+    # Delete from database
+    await delete_scene(scene_id)
+
+    # Delete scene directory on disk
+    scene_dir = sanitize_path(settings.scenes_path, scene_id)
+    if scene_dir.exists():
+        shutil.rmtree(scene_dir)
+
+    # Delete raw video file
+    raw_file = sanitize_path(settings.raw_path, f"{scene_id}.mp4")
+    if raw_file.exists():
+        raw_file.unlink()
+
+    return {"status": "deleted"}

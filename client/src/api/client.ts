@@ -26,8 +26,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // --- Scenes ---
 
-export function getScenes(): Promise<SceneConfig[]> {
-  return request<SceneConfig[]>('/scenes');
+export interface SceneListItem {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  config: SceneConfig | null;
+  latest_run_id: string | null;
+  pipeline_status: string | null;
+}
+
+export function getScenes(): Promise<SceneListItem[]> {
+  return request<SceneListItem[]>('/scenes');
 }
 
 export function getSceneConfig(id: string): Promise<SceneConfig> {
@@ -52,6 +62,12 @@ export function createScene(body: SceneCreateRequest): Promise<SceneRow> {
   return request<SceneRow>('/scenes', {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export function deleteScene(id: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/scenes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   });
 }
 

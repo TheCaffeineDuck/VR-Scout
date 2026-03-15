@@ -12,6 +12,9 @@
 }
 
 .scene-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 8px;
 }
 
@@ -20,6 +23,35 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.scene-card__confirm-delete {
+  display: flex;
+  gap: 4px;
+}
+
+.scene-card__btn--danger {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.scene-card__btn--danger:hover {
+  background: #dc2626;
+}
+
+.scene-card__btn--ghost-danger {
+  border-color: transparent;
+  color: var(--text-tertiary);
+}
+
+.scene-card__btn--ghost-danger:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.scene-card__status-label {
+  text-transform: capitalize;
 }
 
 .scene-card__meta {

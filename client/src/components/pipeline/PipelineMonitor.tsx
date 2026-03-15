@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../../api/ws.ts';
-import { cancelPipeline, resumePipeline } from '../../api/client.ts';
+import { cancelPipeline, resumePipeline, startPipeline } from '../../api/client.ts';
+import { DEFAULT_PIPELINE_CONFIG } from '../../utils/constants.ts';
+import { SceneNav } from '../layout/SceneNav.tsx';
 import { StepList } from './StepList.tsx';
 import { TrainingCharts } from './TrainingCharts.tsx';
 import { ValidationReport } from './ValidationReport.tsx';
@@ -49,8 +51,20 @@ export function PipelineMonitor() {
     }
   }, [sceneId]);
 
+  const handleStart = useCallback(async () => {
+    try {
+      setError(null);
+      await startPipeline(sceneId, DEFAULT_PIPELINE_CONFIG);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to start pipeline';
+      setError(msg);
+    }
+  }, [sceneId]);
+
   const isTraining = status?.current_step === 7 && status.status === 'running';
   const isAwaitingConfirmation = status?.status === 'awaiting_confirmation';
+  // Pipeline is idle when there's no status at all (never run) or it finished/failed
+  const isIdle = !status || status.status === 'completed' || status.status === 'failed';
 
   return (
     <div className="pipeline-monitor">
@@ -64,7 +78,17 @@ export function PipelineMonitor() {
             {connected ? 'Connected' : 'Disconnected'}
           </div>
         </div>
+        {isIdle && (
+          <button
+            className="btn btn--primary"
+            onClick={() => void handleStart()}
+          >
+            Start Processing
+          </button>
+        )}
       </div>
+
+      <SceneNav />
 
       {error && (
         <div className="pipeline-monitor__warnings">

@@ -1,24 +1,37 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useScenes } from '../../hooks/useScenes.ts';
-import type { PipelineStatus } from '../../types/pipeline.ts';
+import { deleteScene } from '../../api/client.ts';
 import './Sidebar.css';
 
-function statusIcon(status?: PipelineStatus): string {
-  switch (status) {
-    case 'completed': return '\u2705';
-    case 'running': return '\u{1F504}';
-    case 'failed': return '\u274C';
-    case 'warning': return '\u26A0\uFE0F';
-    case 'blocked': return '\u{1F6D1}';
+function statusClass(pipelineStatus: string | null): string {
+  switch (pipelineStatus) {
+    case 'completed':
+    case 'awaiting_review':
+      return 'sidebar__status-dot--green';
+    case 'running':
     case 'awaiting_confirmation':
-    case 'awaiting_review': return '\u23F8\uFE0F';
-    default: return '\u2B55';
+      return 'sidebar__status-dot--yellow';
+    case 'failed':
+    case 'blocked':
+      return 'sidebar__status-dot--red';
+    default:
+      return 'sidebar__status-dot--gray';
   }
 }
 
 export function Sidebar() {
-  const { scenes, loading } = useScenes();
+  const { scenes, loading, refresh } = useScenes();
   const navigate = useNavigate();
+
+  const handleDelete = (e: React.MouseEvent, sceneId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete scene "${sceneId}"?`)) return;
+    void deleteScene(sceneId).then(() => {
+      refresh();
+      void navigate('/');
+    });
+  };
 
   return (
     <aside className="sidebar">
@@ -33,18 +46,26 @@ export function Sidebar() {
 
         <ul className="sidebar__scene-list">
           {scenes.map((scene) => (
-            <li key={scene.id}>
+            <li key={scene.id} className="sidebar__scene-item">
               <NavLink
                 to={`/scene/${scene.id}/pipeline`}
                 className={({ isActive }) =>
                   `sidebar__scene-link ${isActive ? 'sidebar__scene-link--active' : ''}`
                 }
               >
-                <span className="sidebar__scene-status">
-                  {statusIcon()}
-                </span>
+                <span
+                  className={`sidebar__status-dot ${statusClass(scene.pipeline_status)}`}
+                  title={scene.pipeline_status ?? 'No pipeline run'}
+                />
                 <span className="sidebar__scene-name">{scene.name}</span>
               </NavLink>
+              <button
+                className="sidebar__delete-btn"
+                onClick={(e) => handleDelete(e, scene.id)}
+                title="Delete scene"
+              >
+                &times;
+              </button>
             </li>
           ))}
         </ul>

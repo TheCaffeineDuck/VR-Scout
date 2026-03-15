@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { PipelineConfig as PipelineConfigType } from '../../types/pipeline.ts';
 import { startPipeline } from '../../api/client.ts';
+import { SceneNav } from '../layout/SceneNav.tsx';
 import { UploadPanel } from './UploadPanel.tsx';
 import { PipelineConfig } from './PipelineConfig.tsx';
 import './UploadScreen.css';
@@ -32,7 +33,8 @@ export function UploadScreen() {
 
   return (
     <div className="upload-screen">
-      <h2>New Scene{sceneId ? `: ${sceneId}` : ''}</h2>
+      <h2>{id ? `Upload: ${sceneId}` : 'New Scene'}</h2>
+      {id && <SceneNav />}
       {error && <div className="upload-screen__error">{error}</div>}
       <div className="upload-screen__panels">
         <UploadPanel

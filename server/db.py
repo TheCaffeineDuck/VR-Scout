@@ -102,12 +102,15 @@ async def reset_db() -> None:
 
 
 async def list_scenes() -> list[SceneRow]:
-    """List all scenes."""
+    """List all scenes with latest pipeline status."""
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, name, created_at, updated_at, config, latest_run_id "
-            "FROM scenes ORDER BY created_at DESC"
+            "SELECT s.id, s.name, s.created_at, s.updated_at, s.config, "
+            "s.latest_run_id, pr.status AS pipeline_status "
+            "FROM scenes s "
+            "LEFT JOIN pipeline_runs pr ON pr.id = s.latest_run_id "
+            "ORDER BY s.created_at DESC"
         )
         rows = await cursor.fetchall()
         results: list[SceneRow] = []
@@ -121,6 +124,7 @@ async def list_scenes() -> list[SceneRow]:
                     updated_at=row["updated_at"],
                     config=SceneConfig(**config_data) if config_data else None,
                     latest_run_id=row["latest_run_id"],
+                    pipeline_status=row["pipeline_status"],
                 )
             )
         return results
@@ -182,6 +186,32 @@ async def update_scene_config(scene_id: str, config: SceneConfig) -> Optional[Sc
     finally:
         await _close_if_not_shared(db)
     return await get_scene(scene_id)
+
+
+async def delete_scene(scene_id: str) -> bool:
+    """Delete a scene and its pipeline runs/steps. Returns True if deleted."""
+    db = await get_db()
+    try:
+        # Delete steps for all runs of this scene
+        await db.execute(
+            "DELETE FROM pipeline_steps WHERE run_id IN "
+            "(SELECT id FROM pipeline_runs WHERE scene_id = ?)",
+            (scene_id,),
+        )
+        # Delete runs
+        await db.execute(
+            "DELETE FROM pipeline_runs WHERE scene_id = ?",
+            (scene_id,),
+        )
+        # Delete scene
+        cursor = await db.execute(
+            "DELETE FROM scenes WHERE id = ?",
+            (scene_id,),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+    finally:
+        await _close_if_not_shared(db)
 
 
 async def update_scene_latest_run(scene_id: str, run_id: str) -> None:

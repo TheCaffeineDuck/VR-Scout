@@ -30,6 +30,7 @@ class SceneRow(BaseModel):
     updated_at: str
     config: Optional[SceneConfig] = None
     latest_run_id: Optional[str] = None
+    pipeline_status: Optional[str] = None
 
 
 class SceneCreate(BaseModel):

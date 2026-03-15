@@ -1,11 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import { useScenes } from '../../hooks/useScenes.ts';
+import { deleteScene } from '../../api/client.ts';
 import { SceneCard } from './SceneCard.tsx';
 import './SceneDashboard.css';
 
 export function SceneDashboard() {
   const { scenes, loading, error, refresh } = useScenes();
   const navigate = useNavigate();
+
+  const handleDelete = (id: string) => {
+    void deleteScene(id).then(() => refresh());
+  };
 
   return (
     <div className="scene-dashboard">
@@ -26,7 +31,7 @@ export function SceneDashboard() {
 
       <div className="scene-dashboard__grid">
         {scenes.map((scene) => (
-          <SceneCard key={scene.id} scene={scene} />
+          <SceneCard key={scene.id} scene={scene} onDelete={handleDelete} />
         ))}
 
         <button

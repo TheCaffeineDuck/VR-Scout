@@ -5,6 +5,7 @@ import type { SceneConfig } from '../../types/scene.ts';
 import { formatNumber } from '../../utils/format.ts';
 import { SceneRenderer } from '../viewer/SceneRenderer.tsx';
 import { ViewerControls } from '../viewer/ViewerControls.tsx';
+import { SceneNav } from '../layout/SceneNav.tsx';
 import { FloorPlaneAdjuster } from './FloorPlaneAdjuster.tsx';
 import './QAReview.css';
 
@@ -44,6 +45,7 @@ export function QAReview() {
 
   return (
     <div className="qa-review">
+      <SceneNav />
       <div className="qa-review__viewer">
         <SceneRenderer
           sceneConfig={scene}

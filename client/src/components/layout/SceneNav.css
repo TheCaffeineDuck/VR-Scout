@@ -1,0 +1,27 @@
+.scene-nav {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.scene-nav__tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.scene-nav__tab:hover {
+  color: var(--text-primary);
+}
+
+.scene-nav__tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}

@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { SceneConfig } from '../types/scene.ts';
+import type { SceneListItem } from '../api/client.ts';
 import { getScenes } from '../api/client.ts';
 
 export interface UseScenesResult {
-  scenes: SceneConfig[];
+  scenes: SceneListItem[];
   loading: boolean;
   error: string | null;
   refresh: () => void;
 }
 
 export function useScenes(): UseScenesResult {
-  const [scenes, setScenes] = useState<SceneConfig[]>([]);
+  const [scenes, setScenes] = useState<SceneListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
