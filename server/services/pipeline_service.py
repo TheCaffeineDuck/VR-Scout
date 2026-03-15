@@ -59,8 +59,8 @@ HANG_CHECK_INTERVAL_SECONDS = 5.0
 
 
 def _get_process_sh_path() -> str:
-    """Get the path to scripts/process.sh."""
-    return str(settings.scripts_path / "process.sh")
+    """Get the absolute path to scripts/process.sh."""
+    return str((settings.scripts_path / "process.sh").resolve())
 
 
 def update_step_tracking(scene_id: str, step_number: int) -> None:
@@ -203,13 +203,25 @@ async def start_pipeline(
     if resume_from is not None:
         cmd_args.extend(["--resume-from", str(resume_from)])
 
+    # Verify script exists before attempting to launch
+    from pathlib import Path as _Path
+
+    if not _Path(process_sh).exists():
+        await update_run_status(run_id, "failed")
+        raise RuntimeError(f"process.sh not found at {process_sh}")
+
+    # Ensure scene directory exists for logs/status output
+    scene_dir = settings.scenes_path / scene_id
+    scene_dir.mkdir(parents=True, exist_ok=True)
+
     try:
         # Use create_subprocess_exec — NEVER create_subprocess_shell
+        # cwd must NOT be the scene dir — process.sh resolves PROJECT_ROOT
+        # relative to its own path, so we run from the project root.
         process = await asyncio.create_subprocess_exec(
             "bash", *cmd_args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=str(settings.scenes_path / scene_id),
         )
         _running_processes[scene_id] = process
 
@@ -240,7 +252,12 @@ async def start_pipeline(
 
     except FileNotFoundError:
         await update_run_status(run_id, "failed")
-        raise RuntimeError(f"process.sh not found at {process_sh}")
+        raise RuntimeError(
+            "bash not found. Pipeline requires bash (WSL on Windows)."
+        )
+    except OSError as e:
+        await update_run_status(run_id, "failed")
+        raise RuntimeError(f"Failed to start pipeline process: {e}")
 
     return run_id
 
@@ -254,7 +271,10 @@ async def _monitor_process(
     from .status_watcher import stop_watching
 
     try:
-        await process.wait()
+        # Use communicate() to drain pipes and avoid deadlock
+        stdout, stderr = await process.communicate()
+        if stderr:
+            logger.info("Pipeline stderr for %s: %s", scene_id, stderr.decode(errors="replace")[-500:])
         status = "completed" if process.returncode == 0 else "failed"
         await update_run_status(run_id, status)
 
