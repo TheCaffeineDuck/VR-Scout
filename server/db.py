@@ -165,7 +165,8 @@ async def create_scene(scene_id: str, name: str) -> SceneRow:
     finally:
         await _close_if_not_shared(db)
     scene = await get_scene(scene_id)
-    assert scene is not None
+    if scene is None:
+        raise RuntimeError(f"Failed to create scene {scene_id}")
     return scene
 
 

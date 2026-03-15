@@ -37,9 +37,13 @@ export function getSceneConfig(id: string): Promise<SceneConfig> {
 // --- Upload ---
 
 export interface UploadChunkResponse {
-  received: number;
-  total: number;
-  complete: boolean;
+  status: 'partial' | 'complete';
+  chunk_index: number;
+  total_chunks: number;
+  received?: number;
+  file_path?: string;
+  file_size_bytes?: number;
+  video_metadata?: Record<string, unknown>;
 }
 
 export interface UploadProgress {
@@ -117,18 +121,23 @@ export async function uploadFileChunked(
 
 // --- Pipeline ---
 
+export interface PipelineActionResponse {
+  run_id?: string;
+  status: string;
+}
+
 export function startPipeline(
   sceneId: string,
   config: PipelineConfig,
-): Promise<StatusFile> {
-  return request<StatusFile>(`/pipeline/start/${encodeURIComponent(sceneId)}`, {
+): Promise<PipelineActionResponse> {
+  return request<PipelineActionResponse>(`/pipeline/start/${encodeURIComponent(sceneId)}`, {
     method: 'POST',
     body: JSON.stringify(config),
   });
 }
 
-export function cancelPipeline(sceneId: string): Promise<StatusFile> {
-  return request<StatusFile>(`/pipeline/cancel/${encodeURIComponent(sceneId)}`, {
+export function cancelPipeline(sceneId: string): Promise<PipelineActionResponse> {
+  return request<PipelineActionResponse>(`/pipeline/cancel/${encodeURIComponent(sceneId)}`, {
     method: 'POST',
   });
 }
@@ -136,8 +145,8 @@ export function cancelPipeline(sceneId: string): Promise<StatusFile> {
 export function resumePipeline(
   sceneId: string,
   step: number,
-): Promise<StatusFile> {
-  return request<StatusFile>(
+): Promise<PipelineActionResponse> {
+  return request<PipelineActionResponse>(
     `/pipeline/resume/${encodeURIComponent(sceneId)}/${step}`,
     { method: 'POST' },
   );

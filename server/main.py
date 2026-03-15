@@ -68,4 +68,5 @@ async def websocket_endpoint(websocket: WebSocket, scene_id: str) -> None:
     except WebSocketDisconnect:
         manager.disconnect(scene_id, websocket)
     except Exception:
+        logger.exception("Unexpected WebSocket error for scene %s", scene_id)
         manager.disconnect(scene_id, websocket)

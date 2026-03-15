@@ -65,7 +65,8 @@ async def update_config(scene_id: str, config: SceneConfig, request: Request) ->
     if scene is None:
         raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
     result = await update_scene_config(scene_id, config)
-    assert result is not None
+    if result is None:
+        raise HTTPException(status_code=500, detail="Failed to update scene config")
     return result
 
 

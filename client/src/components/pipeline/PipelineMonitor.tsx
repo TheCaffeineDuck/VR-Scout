@@ -17,27 +17,35 @@ export function PipelineMonitor() {
   const { status, metrics, logLines, warnings, gpuStats, connected } = useWebSocket(sceneId);
   const [viewingLogStep, setViewingLogStep] = useState<number | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleCancel = useCallback(async () => {
     try {
+      setError(null);
       await cancelPipeline(sceneId);
-    } catch {
-      // Error handling in production
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to cancel pipeline';
+      setError(msg);
     }
   }, [sceneId]);
 
   const handleProceed = useCallback(async () => {
     try {
+      setError(null);
       await resumePipeline(sceneId, 7);
-    } catch {
-      // Error handling in production
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to resume pipeline';
+      setError(msg);
     }
   }, [sceneId]);
 
   const handleRerun = useCallback(async () => {
     try {
+      setError(null);
       await resumePipeline(sceneId, 2);
-    } catch {
-      // Error handling in production
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to rerun pipeline';
+      setError(msg);
     }
   }, [sceneId]);
 
@@ -57,6 +65,12 @@ export function PipelineMonitor() {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="pipeline-monitor__warnings">
+          <div className="pipeline-monitor__warning">{error}</div>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div className="pipeline-monitor__warnings">
