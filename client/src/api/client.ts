@@ -49,6 +49,39 @@ export interface UploadProgress {
   totalChunks: number;
 }
 
+const UPLOAD_MAX_RETRIES = 3;
+
+async function uploadChunkWithRetry(
+  url: string,
+  formData: FormData,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < UPLOAD_MAX_RETRIES; attempt++) {
+    if (signal?.aborted) throw new DOMException('Upload cancelled', 'AbortError');
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new ApiError(res.status, text);
+      }
+      return;
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < UPLOAD_MAX_RETRIES - 1) {
+        // Exponential backoff: 1s, 2s
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError ?? new Error('Upload chunk failed after retries');
+}
+
 export async function uploadFileChunked(
   sceneId: string,
   file: File,
@@ -71,16 +104,7 @@ export async function uploadFileChunked(
     formData.append('total_chunks', String(totalChunks));
     formData.append('filename', file.name);
 
-    const res = await fetch(`${API_BASE}/upload/chunk`, {
-      method: 'POST',
-      body: formData,
-      signal,
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new ApiError(res.status, text);
-    }
+    await uploadChunkWithRetry(`${API_BASE}/upload/chunk`, formData, signal);
 
     onProgress?.({
       loaded: end,

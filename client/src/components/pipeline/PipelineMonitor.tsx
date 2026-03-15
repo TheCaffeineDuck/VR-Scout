@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { usePipelineStatus } from '../../hooks/usePipelineStatus.ts';
-import { useTrainingMetrics } from '../../hooks/useTrainingMetrics.ts';
+import { useWebSocket } from '../../api/ws.ts';
 import { cancelPipeline, resumePipeline } from '../../api/client.ts';
 import { StepList } from './StepList.tsx';
 import { TrainingCharts } from './TrainingCharts.tsx';
@@ -14,8 +13,8 @@ export function PipelineMonitor() {
   const navigate = useNavigate();
   const sceneId = id ?? '';
 
-  const { status, logLines, warnings, gpuStats, connected } = usePipelineStatus(sceneId);
-  const { metrics } = useTrainingMetrics(sceneId);
+  // Single WebSocket connection for all pipeline data
+  const { status, metrics, logLines, warnings, gpuStats, connected } = useWebSocket(sceneId);
   const [viewingLogStep, setViewingLogStep] = useState<number | null>(null);
 
   const handleCancel = useCallback(async () => {

@@ -13,9 +13,19 @@ export function FloorPlaneAdjuster({ sceneId, onApply }: FloorPlaneAdjusterProps
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleReset = () => {
-    setYOffset(0);
-    setYRotation(0);
+  const handleReset = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateAlignment(sceneId, { y_offset: 0, y_rotation: 0 });
+      setYOffset(0);
+      setYRotation(0);
+      onApply?.();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to reset alignment');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleApply = async () => {
@@ -60,8 +70,8 @@ export function FloorPlaneAdjuster({ sceneId, onApply }: FloorPlaneAdjusterProps
       {error && <div className="floor-adjuster__error">{error}</div>}
 
       <div className="floor-adjuster__actions">
-        <button className="btn btn--ghost" onClick={handleReset}>
-          Reset
+        <button className="btn btn--ghost" disabled={saving} onClick={() => void handleReset()}>
+          {saving ? 'Resetting...' : 'Reset'}
         </button>
         <button
           className="btn btn--primary"
