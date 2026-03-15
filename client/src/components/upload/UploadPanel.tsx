@@ -1,16 +1,32 @@
 import { useState, useRef, useCallback } from 'react';
-import { uploadFileChunked } from '../../api/client.ts';
+import { createScene, uploadFileChunked } from '../../api/client.ts';
 import type { UploadProgress } from '../../api/client.ts';
 import { UPLOAD_ACCEPTED_TYPES, UPLOAD_MAX_SIZE, UPLOAD_WARN_SIZE } from '../../utils/constants.ts';
 import { formatFileSize, formatPercent } from '../../utils/format.ts';
 import './UploadPanel.css';
 
+/** Derive a URL-safe scene ID from a video filename: "Library Area.MP4" → "Library_Area" */
+function sceneIdFromFile(filename: string): string {
+  const base = filename.replace(/\.[^.]+$/, '');
+  // Replace non-alphanumeric (except - and _) with underscore, collapse runs, trim edges
+  return base
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64) || `scene_${Date.now()}`;
+}
+
+/** Derive a human-readable scene name from a video filename: "library_area.MP4" → "library_area" */
+function sceneNameFromFile(filename: string): string {
+  return filename.replace(/\.[^.]+$/, '');
+}
+
 interface UploadPanelProps {
   sceneId: string;
+  onSceneIdResolved: (id: string) => void;
   onUploadComplete: () => void;
 }
 
-export function UploadPanel({ sceneId, onUploadComplete }: UploadPanelProps) {
+export function UploadPanel({ sceneId, onSceneIdResolved, onUploadComplete }: UploadPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
@@ -40,8 +56,12 @@ export function UploadPanel({ sceneId, onUploadComplete }: UploadPanelProps) {
       setError(null);
       setFile(f);
       setProgress(null);
+      // If no scene ID yet, derive one from the filename
+      if (!sceneId) {
+        onSceneIdResolved(sceneIdFromFile(f.name));
+      }
     },
-    [validateFile],
+    [validateFile, sceneId, onSceneIdResolved],
   );
 
   const handleDrop = useCallback(
@@ -55,13 +75,17 @@ export function UploadPanel({ sceneId, onUploadComplete }: UploadPanelProps) {
   );
 
   const handleUpload = useCallback(async () => {
-    if (!file) return;
+    if (!file || !sceneId) return;
     setUploading(true);
     setError(null);
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
+      // Create the scene in the database before uploading chunks
+      const sceneName = sceneNameFromFile(file.name);
+      await createScene({ id: sceneId, name: sceneName });
+
       await uploadFileChunked(
         sceneId,
         file,
@@ -157,7 +181,7 @@ export function UploadPanel({ sceneId, onUploadComplete }: UploadPanelProps) {
         {!uploading ? (
           <button
             className="btn btn--primary"
-            disabled={!file}
+            disabled={!file || !sceneId}
             onClick={() => void handleUpload()}
           >
             Upload

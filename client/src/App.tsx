@@ -22,6 +22,7 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<SceneDashboard />} />
+          <Route path="/upload" element={<UploadScreen />} />
           <Route path="/scene/:id/upload" element={<UploadScreen />} />
           <Route path="/scene/:id/pipeline" element={<PipelineMonitor />} />
           <Route path="/scene/:id/review" element={<QAReview />} />

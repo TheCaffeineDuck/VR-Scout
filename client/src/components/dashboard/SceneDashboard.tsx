@@ -32,8 +32,7 @@ export function SceneDashboard() {
         <button
           className="scene-dashboard__new-card"
           onClick={() => {
-            const id = `scene_${Date.now()}`;
-            void navigate(`/scene/${id}/upload`);
+            void navigate('/upload');
           }}
         >
           <span className="scene-dashboard__new-icon">+</span>

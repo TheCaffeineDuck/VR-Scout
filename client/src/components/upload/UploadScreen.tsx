@@ -9,17 +9,22 @@ import './UploadScreen.css';
 export function UploadScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const sceneId = id ?? '';
 
+  // Scene ID may come from URL (re-upload) or be set when file is selected (new upload)
+  const [sceneId, setSceneId] = useState(id ?? '');
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleStart = useCallback(
     async (config: PipelineConfigType) => {
+      if (!sceneId) return;
       try {
+        setError(null);
         await startPipeline(sceneId, config);
         void navigate(`/scene/${sceneId}/pipeline`);
-      } catch {
-        // Error handling in production
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to start pipeline';
+        setError(msg);
       }
     },
     [sceneId, navigate],
@@ -27,10 +32,12 @@ export function UploadScreen() {
 
   return (
     <div className="upload-screen">
-      <h2>New Scene: {sceneId}</h2>
+      <h2>New Scene{sceneId ? `: ${sceneId}` : ''}</h2>
+      {error && <div className="upload-screen__error">{error}</div>}
       <div className="upload-screen__panels">
         <UploadPanel
           sceneId={sceneId}
+          onSceneIdResolved={(resolvedId) => setSceneId(resolvedId)}
           onUploadComplete={() => setUploadComplete(true)}
         />
         <PipelineConfig

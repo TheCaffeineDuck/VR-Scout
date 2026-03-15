@@ -52,8 +52,7 @@ export function Sidebar() {
         <button
           className="sidebar__new-scene-btn"
           onClick={() => {
-            const id = `scene_${Date.now()}`;
-            void navigate(`/scene/${id}/upload`);
+            void navigate('/upload');
           }}
         >
           + New Scene

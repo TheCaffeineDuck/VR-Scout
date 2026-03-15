@@ -34,6 +34,27 @@ export function getSceneConfig(id: string): Promise<SceneConfig> {
   return request<SceneConfig>(`/scene/${encodeURIComponent(id)}/config`);
 }
 
+export interface SceneCreateRequest {
+  id: string;
+  name: string;
+}
+
+export interface SceneRow {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  config: SceneConfig | null;
+  latest_run_id: string | null;
+}
+
+export function createScene(body: SceneCreateRequest): Promise<SceneRow> {
+  return request<SceneRow>('/scenes', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 // --- Upload ---
 
 export interface UploadChunkResponse {
