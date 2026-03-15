@@ -63,6 +63,17 @@ def _get_process_sh_path() -> str:
     return str((settings.scripts_path / "process.sh").resolve())
 
 
+def _win_to_wsl_path(win_path: str) -> str:
+    """Convert a Windows path like C:\\Users\\... to WSL path /mnt/c/Users/..."""
+    # Replace backslashes
+    p = win_path.replace("\\", "/")
+    # Convert drive letter: C:/... -> /mnt/c/...
+    if len(p) >= 2 and p[1] == ":":
+        drive = p[0].lower()
+        p = f"/mnt/{drive}{p[2:]}"
+    return p
+
+
 def update_step_tracking(scene_id: str, step_number: int) -> None:
     """Update the current step being tracked for hang detection.
 
@@ -189,19 +200,6 @@ async def start_pipeline(
 
     # Build command args — NEVER use shell=True
     process_sh = _get_process_sh_path()
-    cmd_args = [
-        process_sh,
-        scene_id,  # positional arg expected by process.sh
-        "--camera-model", config.camera_model,
-        "--matcher", config.matcher,
-        "--iterations", str(config.training_iterations),
-        "--sh-degree", str(config.sh_degree),
-        "--data-factor", str(config.data_factor),
-        "--frame-fps", str(config.frame_fps),
-    ]
-
-    if resume_from is not None:
-        cmd_args.extend(["--resume-from", str(resume_from)])
 
     # Verify script exists before attempting to launch
     from pathlib import Path as _Path
@@ -214,12 +212,31 @@ async def start_pipeline(
     scene_dir = settings.scenes_path / scene_id
     scene_dir.mkdir(parents=True, exist_ok=True)
 
+    script_args = [
+        scene_id,  # positional arg expected by process.sh
+        "--camera-model", config.camera_model,
+        "--matcher", config.matcher,
+        "--iterations", str(config.training_iterations),
+        "--sh-degree", str(config.sh_degree),
+        "--data-factor", str(config.data_factor),
+        "--frame-fps", str(config.frame_fps),
+    ]
+
+    if resume_from is not None:
+        script_args.extend(["--resume-from", str(resume_from)])
+
+    # On Windows, pipeline scripts require WSL (COLMAP, ffmpeg, gsplat, etc.)
+    if sys.platform == "win32":
+        wsl_script = _win_to_wsl_path(process_sh)
+        cmd = ["wsl", "-d", "Ubuntu-22.04", "--", "bash", "-ic",
+               f"conda activate splat && {wsl_script} {' '.join(script_args)}"]
+    else:
+        cmd = ["bash", process_sh, *script_args]
+
     try:
         # Use create_subprocess_exec — NEVER create_subprocess_shell
-        # cwd must NOT be the scene dir — process.sh resolves PROJECT_ROOT
-        # relative to its own path, so we run from the project root.
         process = await asyncio.create_subprocess_exec(
-            "bash", *cmd_args,
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

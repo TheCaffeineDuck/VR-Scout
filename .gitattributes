@@ -1,0 +1,3 @@
+# Force LF line endings for scripts that run in WSL/Linux
+scripts/*.sh text eol=lf
+scripts/*.py text eol=lf

@@ -1,6 +1,7 @@
 """Pipeline control endpoints."""
 
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -17,6 +18,8 @@ from ..services import pipeline_service
 from ..services.metrics_parser import parse_metrics_file
 from ..services.status_watcher import read_status_file
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/pipeline")
 
 
@@ -25,25 +28,26 @@ async def start_pipeline(
     scene_id: str, config: PipelineConfig, request: Request,
 ) -> dict[str, str]:
     """Start the pipeline for a scene."""
-    client_ip = request.client.host if request.client else "unknown"
-    pipeline_limiter.check_or_raise(client_ip)
-    validate_scene_id(scene_id)
-
-    scene = await get_scene(scene_id)
-    if scene is None:
-        raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
-
-    if pipeline_service.is_running(scene_id):
-        raise HTTPException(status_code=409, detail="Pipeline already running")
-
+    logger.info("START PIPELINE called for scene_id=%s", scene_id)
     try:
-        run_id = await pipeline_service.start_pipeline(scene_id, config)
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e) or "Pipeline failed to start")
+        client_ip = request.client.host if request.client else "unknown"
+        pipeline_limiter.check_or_raise(client_ip)
+        validate_scene_id(scene_id)
 
-    return {"run_id": run_id, "status": "started"}
+        scene = await get_scene(scene_id)
+        if scene is None:
+            raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
+
+        if pipeline_service.is_running(scene_id):
+            raise HTTPException(status_code=409, detail="Pipeline already running")
+
+        run_id = await pipeline_service.start_pipeline(scene_id, config)
+        return {"run_id": run_id, "status": "started"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Pipeline start failed for scene %s", scene_id)
+        raise HTTPException(status_code=500, detail=str(e) or "Pipeline failed to start")
 
 
 @router.post("/resume/{scene_id}/{step}")
