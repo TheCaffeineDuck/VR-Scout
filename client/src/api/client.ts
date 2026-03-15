@@ -19,7 +19,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(res.status, text);
+    // Extract detail from JSON error responses (FastAPI format)
+    let message = text;
+    try {
+      const json = JSON.parse(text) as { detail?: string };
+      if (typeof json.detail === 'string') message = json.detail;
+    } catch {
+      // Not JSON, use raw text
+    }
+    throw new ApiError(res.status, message || `${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 }

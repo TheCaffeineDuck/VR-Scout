@@ -40,6 +40,8 @@ async def start_pipeline(
         run_id = await pipeline_service.start_pipeline(scene_id, config)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e) or "Pipeline failed to start")
 
     return {"run_id": run_id, "status": "started"}
 
