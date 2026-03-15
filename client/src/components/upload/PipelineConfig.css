@@ -1,0 +1,40 @@
+.pipeline-config {
+  flex: 1;
+}
+
+.pipeline-config h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.pipeline-config__field {
+  margin-bottom: 16px;
+}
+
+.pipeline-config__field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.pipeline-config__hint {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+}
+
+.pipeline-config__hint--warn {
+  color: var(--status-warning);
+}
+
+.pipeline-config__range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}

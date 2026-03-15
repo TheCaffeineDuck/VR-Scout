@@ -1,0 +1,57 @@
+.training-charts {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.training-charts h4 {
+  margin: 0 0 16px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.training-charts__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.training-charts__chart-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.training-charts__stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.training-charts__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.training-charts__stat-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.training-charts__stat-value {
+  font-size: 14px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.training-charts__stat-value--warn {
+  color: var(--status-warning);
+}

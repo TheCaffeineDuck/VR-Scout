@@ -1,0 +1,85 @@
+.step-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.step-item:hover {
+  background: var(--surface-hover);
+}
+
+.step-item--running {
+  background: var(--accent-bg);
+}
+
+.step-item--failed {
+  background: var(--status-failed-bg);
+}
+
+.step-item__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-item__icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.step-item__icon--spin {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.step-item__number {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.step-item__name {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+  flex: 1;
+}
+
+.step-item__time {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.step-item__summary {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-item__details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.step-item__error {
+  font-size: 13px;
+  color: var(--status-failed);
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}

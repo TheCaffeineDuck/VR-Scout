@@ -1,0 +1,63 @@
+.scene-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.scene-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 12px var(--shadow-color);
+}
+
+.scene-card__header {
+  margin-bottom: 8px;
+}
+
+.scene-card__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.scene-card__meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.scene-card__dot {
+  margin: 0 6px;
+}
+
+.scene-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.scene-card__btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.scene-card__btn:hover {
+  background: var(--surface-hover);
+}
+
+.scene-card__btn--primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.scene-card__btn--primary:hover {
+  opacity: 0.9;
+}

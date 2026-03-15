@@ -1,0 +1,30 @@
+.floor-adjuster h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.floor-adjuster__field {
+  margin-bottom: 12px;
+}
+
+.floor-adjuster__field label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.floor-adjuster__error {
+  padding: 8px;
+  background: var(--status-failed-bg);
+  color: var(--status-failed);
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.floor-adjuster__actions {
+  display: flex;
+  gap: 8px;
+}

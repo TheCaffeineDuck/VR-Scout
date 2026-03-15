@@ -1,0 +1,35 @@
+.log-viewer {
+  background: #1a1b1e;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.log-viewer__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #222326;
+  font-size: 13px;
+  color: #9ca3af;
+  border-bottom: 1px solid #2e303a;
+}
+
+.log-viewer__loading {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.log-viewer__content {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #d1d5db;
+  max-height: 320px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

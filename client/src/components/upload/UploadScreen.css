@@ -1,0 +1,11 @@
+.upload-screen h2 {
+  margin: 0 0 20px;
+  font-size: 22px;
+  color: var(--text-primary);
+}
+
+.upload-screen__panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}

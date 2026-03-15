@@ -1,0 +1,68 @@
+.validation-report {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.validation-report--error {
+  background: var(--status-failed-bg);
+  color: var(--status-failed);
+}
+
+.validation-report h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.validation-report__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.validation-report__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.validation-report__row > span:first-child {
+  color: var(--text-secondary);
+}
+
+.validation-report__pass {
+  color: var(--status-completed);
+}
+
+.validation-report__warn {
+  color: var(--status-warning);
+}
+
+.validation-report__warnings {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--status-warning-bg);
+  border-radius: 6px;
+}
+
+.validation-report__warning-item {
+  font-size: 13px;
+  color: var(--status-warning);
+  padding: 2px 0;
+}
+
+.validation-report__unregistered {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.validation-report__actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+}
