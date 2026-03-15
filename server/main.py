@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .db import init_db
 from .routes import health, pipeline, scenes, upload
+from .services.gpu_poller import start_gpu_poller, stop_gpu_poller
 from .ws.manager import manager
 
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +23,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Initializing database at %s", settings.db_path)
     await init_db()
     logger.info("Database initialized")
+    start_gpu_poller()
+    logger.info("GPU poller started")
     yield
+    stop_gpu_poller()
     logger.info("Shutting down")
 
 

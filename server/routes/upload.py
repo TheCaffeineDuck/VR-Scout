@@ -1,6 +1,10 @@
-"""Chunked file upload endpoint."""
+"""Chunked file upload endpoint with ffprobe validation."""
 
+import asyncio
+import json
+import logging
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
@@ -8,6 +12,83 @@ from ..config import settings
 from ..db import get_scene
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+async def _probe_video(file_path: Path) -> Optional[dict[str, object]]:
+    """Validate video file with ffprobe and return metadata.
+
+    Uses asyncio.create_subprocess_exec (NEVER shell=True).
+    Returns None if ffprobe is not available.
+    """
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "ffprobe",
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            "-show_streams",
+            str(file_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(), timeout=30.0
+        )
+    except FileNotFoundError:
+        logger.info("ffprobe not found, skipping video validation")
+        return None
+    except TimeoutError:
+        logger.warning("ffprobe timed out for %s", file_path)
+        return None
+
+    if process.returncode != 0:
+        logger.warning(
+            "ffprobe failed for %s (exit %d): %s",
+            file_path, process.returncode,
+            stderr.decode(errors="replace").strip(),
+        )
+        return None
+
+    try:
+        data = json.loads(stdout.decode(errors="replace"))
+    except json.JSONDecodeError:
+        logger.warning("ffprobe output is not valid JSON for %s", file_path)
+        return None
+
+    # Extract useful metadata
+    fmt = data.get("format", {})
+    streams = data.get("streams", [])
+
+    video_stream = next(
+        (s for s in streams if s.get("codec_type") == "video"), None
+    )
+
+    metadata: dict[str, object] = {
+        "format": fmt.get("format_name"),
+        "duration_seconds": float(fmt["duration"]) if "duration" in fmt else None,
+        "size_bytes": int(fmt["size"]) if "size" in fmt else None,
+    }
+
+    if video_stream:
+        metadata["video_codec"] = video_stream.get("codec_name")
+        metadata["width"] = video_stream.get("width")
+        metadata["height"] = video_stream.get("height")
+        r_frame_rate = video_stream.get("r_frame_rate", "")
+        if "/" in str(r_frame_rate):
+            parts = str(r_frame_rate).split("/")
+            try:
+                num, den = int(parts[0]), int(parts[1])
+                metadata["fps"] = round(num / den, 2) if den else None
+            except (ValueError, ZeroDivisionError):
+                metadata["fps"] = None
+        else:
+            try:
+                metadata["fps"] = float(r_frame_rate) if r_frame_rate else None
+            except ValueError:
+                metadata["fps"] = None
+
+    return metadata
 
 
 @router.post("/api/upload/chunk")
@@ -20,7 +101,7 @@ async def upload_chunk(
     """Handle chunked file upload.
 
     Receives one chunk at a time (5MB each). When all chunks are received,
-    reassembles them into raw/{scene_id}.mp4.
+    reassembles them into raw/{scene_id}.mp4 and validates with ffprobe.
     """
     _validate_scene_id(scene_id)
 
@@ -66,12 +147,21 @@ async def upload_chunk(
             cp.unlink()
         chunks_dir.rmdir()
 
-        return {
+        # Validate with ffprobe (if available)
+        video_metadata = await _probe_video(output_path)
+
+        result: dict[str, object] = {
             "status": "complete",
             "chunk_index": chunk_index,
             "total_chunks": total_chunks,
             "file_path": str(output_path),
+            "file_size_bytes": output_path.stat().st_size,
         }
+
+        if video_metadata is not None:
+            result["video_metadata"] = video_metadata
+
+        return result
 
     return {
         "status": "partial",
