@@ -1,0 +1,13 @@
+{
+  "camera_model": "SIMPLE_RADIAL",
+  "matcher": "exhaustive",
+  "training_iterations": 30000,
+  "sh_degree": 1,
+  "data_factor": 1,
+  "frame_fps": 2,
+  "scene_change_threshold": 0.1,
+  "min_opacity": 5,
+  "sor_intensity": 3,
+  "compression_level": 5,
+  "spark_version": "0.1.10"
+}
