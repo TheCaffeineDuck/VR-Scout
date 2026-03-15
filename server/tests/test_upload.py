@@ -100,4 +100,4 @@ async def test_upload_path_traversal_rejected(client: AsyncClient) -> None:
         },
         files={"file": ("chunk", b"test data")},
     )
-    assert response.status_code == 400
+    assert response.status_code == 422

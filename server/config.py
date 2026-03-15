@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     upload_chunk_size: int = 5 * 1024 * 1024  # 5 MB
     max_upload_size: int = 10 * 1024 * 1024 * 1024  # 10 GB
+    max_total_upload_size: int = 20 * 1024 * 1024 * 1024  # 20 GB per scene
+    max_chunk_size: int = 10 * 1024 * 1024  # 10 MB hard limit per chunk
 
     model_config = {"env_prefix": "VRS_"}
 

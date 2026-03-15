@@ -63,12 +63,12 @@ async def test_get_scene_config_no_config(client: AsyncClient, sample_scene: dic
 @pytest.mark.asyncio
 async def test_path_traversal_rejected(client: AsyncClient) -> None:
     """Scene IDs with path traversal patterns are rejected via create."""
-    # Path traversal in scene creation is caught by validation
+    # Path traversal in scene creation is caught by Pydantic + validate_scene_id
     response = await client.post("/api/scenes", json={"id": "..evil", "name": "Bad"})
-    assert response.status_code == 400
+    assert response.status_code == 422
 
     response = await client.post("/api/scenes", json={"id": "foo/bar", "name": "Bad"})
-    assert response.status_code == 400
+    assert response.status_code == 422
 
     response = await client.post("/api/scenes", json={"id": "foo\\bar", "name": "Bad"})
-    assert response.status_code == 400
+    assert response.status_code == 422

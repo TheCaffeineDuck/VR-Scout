@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .db import init_db
 from .routes import health, pipeline, scenes, upload
+from .security import validate_scene_id
 from .services.gpu_poller import start_gpu_poller, stop_gpu_poller
 from .ws.manager import manager
 
@@ -56,6 +57,7 @@ app.include_router(upload.router)
 @app.websocket("/api/ws/{scene_id}")
 async def websocket_endpoint(websocket: WebSocket, scene_id: str) -> None:
     """WebSocket endpoint for real-time pipeline updates."""
+    validate_scene_id(scene_id)
     await manager.connect(scene_id, websocket)
     try:
         while True:

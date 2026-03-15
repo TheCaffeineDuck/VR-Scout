@@ -6,13 +6,17 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from ..config import settings
 from ..db import get_scene
+from ..security import sanitize_path, upload_limiter, validate_scene_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Track total uploaded bytes per scene_id (in-memory; resets on server restart)
+_upload_totals: dict[str, int] = {}
 
 
 async def _probe_video(file_path: Path) -> Optional[dict[str, object]]:
@@ -93,6 +97,7 @@ async def _probe_video(file_path: Path) -> Optional[dict[str, object]]:
 
 @router.post("/api/upload/chunk")
 async def upload_chunk(
+    request: Request,
     scene_id: str = Form(...),
     chunk_index: int = Form(...),
     total_chunks: int = Form(...),
@@ -100,20 +105,49 @@ async def upload_chunk(
 ) -> dict[str, object]:
     """Handle chunked file upload.
 
-    Receives one chunk at a time (5MB each). When all chunks are received,
+    Receives one chunk at a time. When all chunks are received,
     reassembles them into raw/{scene_id}.mp4 and validates with ffprobe.
     """
-    _validate_scene_id(scene_id)
+    # Input validation
+    validate_scene_id(scene_id)
+
+    if chunk_index < 0:
+        raise HTTPException(status_code=400, detail="chunk_index must be non-negative")
+    if total_chunks < 1 or total_chunks > 10000:
+        raise HTTPException(
+            status_code=400,
+            detail="total_chunks must be between 1 and 10000",
+        )
+    if chunk_index >= total_chunks:
+        raise HTTPException(status_code=400, detail="chunk_index must be less than total_chunks")
+
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    upload_limiter.check_or_raise(client_ip)
 
     scene = await get_scene(scene_id)
     if scene is None:
         raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
 
-    if chunk_index < 0 or chunk_index >= total_chunks:
-        raise HTTPException(status_code=400, detail="Invalid chunk_index")
+    # Read chunk content and enforce chunk size limit
+    content = await file.read()
+    if len(content) > settings.max_chunk_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Chunk exceeds maximum size of {settings.max_chunk_size} bytes",
+        )
 
-    # Ensure directories exist
-    scene_dir = settings.scenes_path / scene_id
+    # Track total upload size per scene
+    current_total = _upload_totals.get(scene_id, 0) + len(content)
+    if current_total > settings.max_total_upload_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Total upload size for scene exceeds {settings.max_total_upload_size} bytes",
+        )
+    _upload_totals[scene_id] = current_total
+
+    # Ensure directories exist — use sanitize_path for safety
+    scene_dir = sanitize_path(settings.scenes_path, scene_id)
     raw_dir = scene_dir / "raw"
     chunks_dir = scene_dir / "chunks"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -121,10 +155,6 @@ async def upload_chunk(
 
     # Write chunk to temp file
     chunk_path = chunks_dir / f"chunk_{chunk_index:05d}"
-    content = await file.read()
-    if len(content) > settings.upload_chunk_size + 1024:  # Allow small overhead
-        raise HTTPException(status_code=413, detail="Chunk too large")
-
     chunk_path.write_bytes(content)
 
     # Check if all chunks are present
@@ -146,6 +176,9 @@ async def upload_chunk(
         for cp in chunks_dir.glob("chunk_*"):
             cp.unlink()
         chunks_dir.rmdir()
+
+        # Reset upload tracking for this scene
+        _upload_totals.pop(scene_id, None)
 
         # Validate with ffprobe (if available)
         video_metadata = await _probe_video(output_path)
@@ -169,10 +202,3 @@ async def upload_chunk(
         "total_chunks": total_chunks,
         "received": received,
     }
-
-
-def _validate_scene_id(scene_id: str) -> None:
-    """Validate scene_id to prevent path traversal attacks."""
-    normalized = Path(scene_id).name
-    if normalized != scene_id or ".." in scene_id or "/" in scene_id or "\\" in scene_id:
-        raise HTTPException(status_code=400, detail="Invalid scene ID")

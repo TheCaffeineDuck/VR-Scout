@@ -1,8 +1,9 @@
 """Scene-related Pydantic models matching client/src/types/scene.ts."""
 
-from typing import Literal, Optional
+import re
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class SceneConfig(BaseModel):
@@ -34,8 +35,17 @@ class SceneRow(BaseModel):
 class SceneCreate(BaseModel):
     """Request body for creating a scene."""
 
-    id: str
-    name: str
+    id: Annotated[str, Field(max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")]
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, v: str) -> str:
+        if not re.match(r"^[a-zA-Z0-9_-]{1,64}$", v):
+            raise ValueError(
+                "id must be 1-64 characters, alphanumeric, hyphens, or underscores only"
+            )
+        return v
 
 
 class AlignmentUpdate(BaseModel):
