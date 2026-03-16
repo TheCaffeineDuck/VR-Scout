@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import type { SceneListItem } from '../api/client.ts';
 import { getScenes } from '../api/client.ts';
 
+/** Global event target so all useScenes instances refresh together. */
+const scenesEvents = new EventTarget();
+
+/** Call this after any mutation (delete, create) to refresh all scene lists. */
+export function refreshAllScenes(): void {
+  scenesEvents.dispatchEvent(new Event('refresh'));
+}
+
 export interface UseScenesResult {
   scenes: SceneListItem[];
   loading: boolean;
@@ -27,6 +35,13 @@ export function useScenes(): UseScenesResult {
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  // Listen for global refresh events
+  useEffect(() => {
+    const handler = () => refresh();
+    scenesEvents.addEventListener('refresh', handler);
+    return () => scenesEvents.removeEventListener('refresh', handler);
   }, [refresh]);
 
   return { scenes, loading, error, refresh };

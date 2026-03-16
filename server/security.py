@@ -96,6 +96,6 @@ class SlidingWindowRateLimiter:
 
 
 # Pre-configured rate limiters
-upload_limiter = SlidingWindowRateLimiter(max_requests=10, window_seconds=60.0)
+upload_limiter = SlidingWindowRateLimiter(max_requests=1000, window_seconds=60.0)
 pipeline_limiter = SlidingWindowRateLimiter(max_requests=5, window_seconds=60.0)
 general_limiter = SlidingWindowRateLimiter(max_requests=60, window_seconds=60.0)

@@ -252,6 +252,44 @@ if [ "$RESUME_FROM" -le 1 ]; then
     write_status 1 "frame_extraction" "warning" \
       "$FRAME_COUNT frames extracted. 150+ recommended for good COLMAP registration. Consider re-shooting with slower movement."
   fi
+
+  # ─── Step 1.5: Metadata Extraction ─────────────────────────────
+  # Extracts video container metadata and optionally parses DJI SRT telemetry.
+  # Failures here NEVER block the pipeline — SRT is optional enrichment.
+  SRT_FILE="$SCENE_DIR/source.srt"
+  METADATA_FILE="$SCENE_DIR/metadata.json"
+  FRAME_MATCH_FILE="$SCENE_DIR/frame_metadata.json"
+  METADATA_LOG="$LOGS_DIR/step_1_metadata.log"
+
+  echo "=== Step 1.5: metadata extraction ===" | tee "$METADATA_LOG"
+
+  # Always extract video container metadata
+  python3 "$PROJECT_ROOT/scripts/extract_metadata.py" \
+    --video "$RAW_VIDEO" \
+    --output "$METADATA_FILE" \
+    >> "$METADATA_LOG" 2>&1 || true
+
+  # If SRT file exists, re-run with SRT parsing and frame matching
+  if [ -f "$SRT_FILE" ]; then
+    echo "SRT sidecar found, parsing telemetry..." >> "$METADATA_LOG"
+    python3 "$PROJECT_ROOT/scripts/extract_metadata.py" \
+      --video "$RAW_VIDEO" \
+      --srt "$SRT_FILE" \
+      --frames_dir "$FRAMES_DIR" \
+      --extraction_fps "$FRAME_FPS" \
+      --output "$METADATA_FILE" \
+      --frame_match_output "$FRAME_MATCH_FILE" \
+      >> "$METADATA_LOG" 2>&1
+
+    EXTRACT_EXIT=$?
+    if [ $EXTRACT_EXIT -ne 0 ]; then
+      echo "WARNING: SRT parsing failed (exit $EXTRACT_EXIT). Proceeding without telemetry." >> "$METADATA_LOG"
+    else
+      echo "SRT parsed successfully." >> "$METADATA_LOG"
+    fi
+  else
+    echo "No SRT file provided. Using container metadata only." >> "$METADATA_LOG"
+  fi
 fi
 
 # ─── Step 2: COLMAP Feature Extraction ───────────────────────────
@@ -326,13 +364,127 @@ elif [ -z "${BEST_MODEL:-}" ]; then
   BEST_MODEL="$SPARSE_DIR/0/"
 fi
 
-# ─── Step 5: Gravity Alignment ───────────────────────────────────
+# ─── Step 5: Gravity Alignment (strategy depends on metadata) ────
 if [ "$RESUME_FROM" -le 5 ]; then
-  run_step 5 "gravity_alignment" \
-    colmap model_orientation_aligner \
-      --image_path "$FRAMES_DIR" \
-      --input_path "$BEST_MODEL" \
-      --output_path "$ALIGNED_DIR"
+  METADATA_FILE="$SCENE_DIR/metadata.json"
+  FRAME_MATCH_FILE="$SCENE_DIR/frame_metadata.json"
+  GEO_REF_FILE="$SCENE_DIR/geo_reference.txt"
+  ALIGNMENT_STRATEGY="manhattan"
+
+  # Determine best alignment strategy from available metadata
+  if [ -f "$METADATA_FILE" ]; then
+    ALIGNMENT_STRATEGY=$(python3 -c "
+import json
+meta = json.load(open('$METADATA_FILE'))
+srt = meta.get('srt') or {}
+has_gps = srt.get('has_gps', False)
+has_gimbal = srt.get('has_gimbal', False)
+if has_gps:
+    print('geo_registration')
+elif has_gimbal:
+    print('gimbal_gravity')
+else:
+    print('manhattan')
+" 2>/dev/null || echo "manhattan")
+  fi
+
+  echo "Alignment strategy: $ALIGNMENT_STRATEGY"
+
+  case "$ALIGNMENT_STRATEGY" in
+
+    geo_registration)
+      # Best case: GPS data — use colmap model_aligner with geo-reference
+      echo "Using GPS geo-registration for alignment..."
+
+      # Generate the geo-reference file from matched frame GPS data
+      python3 "$PROJECT_ROOT/scripts/generate_geo_reference.py" \
+        --frame_metadata "$FRAME_MATCH_FILE" \
+        --output "$GEO_REF_FILE" \
+        >> "$LOGS_DIR/step_5_gravity_alignment.log" 2>&1
+      GEO_EXIT=$?
+
+      if [ $GEO_EXIT -eq 0 ] && [ -f "$GEO_REF_FILE" ]; then
+        # Try model_aligner with geo-reference (provides scale + position + orientation)
+        run_step 5 "gravity_alignment" \
+          colmap model_aligner \
+            --input_path "$BEST_MODEL" \
+            --output_path "$ALIGNED_DIR" \
+            --ref_images_path "$GEO_REF_FILE" \
+            --robust_alignment 1 \
+            --robust_alignment_max_error 3.0 \
+          || {
+            # Fallback to orientation aligner if model_aligner fails
+            echo "WARNING: model_aligner failed, falling back to model_orientation_aligner"
+            ALIGNMENT_STRATEGY="manhattan"
+            run_step 5 "gravity_alignment" \
+              colmap model_orientation_aligner \
+                --image_path "$FRAMES_DIR" \
+                --input_path "$BEST_MODEL" \
+                --output_path "$ALIGNED_DIR"
+          }
+      else
+        echo "WARNING: Geo-reference file generation failed, falling back to orientation aligner"
+        ALIGNMENT_STRATEGY="manhattan"
+        run_step 5 "gravity_alignment" \
+          colmap model_orientation_aligner \
+            --image_path "$FRAMES_DIR" \
+            --input_path "$BEST_MODEL" \
+            --output_path "$ALIGNED_DIR"
+      fi
+      ;;
+
+    gimbal_gravity)
+      # Gimbal data but no GPS — run orientation aligner, then cross-check with gimbal
+      echo "Using Manhattan alignment + gimbal gravity verification..."
+      run_step 5 "gravity_alignment" \
+        colmap model_orientation_aligner \
+          --image_path "$FRAMES_DIR" \
+          --input_path "$BEST_MODEL" \
+          --output_path "$ALIGNED_DIR"
+
+      # Cross-check against gimbal gravity prior (non-blocking)
+      if [ -f "$FRAME_MATCH_FILE" ]; then
+        python3 "$PROJECT_ROOT/scripts/validate_gravity.py" \
+          --frame_metadata "$FRAME_MATCH_FILE" \
+          --aligned_path "$ALIGNED_DIR" \
+          --output "$SCENE_DIR/gravity_validation.json" \
+          >> "$LOGS_DIR/step_5_gravity_alignment.log" 2>&1 || true
+
+        # Check agreement and warn if needed
+        GRAVITY_MATCH=$(python3 -c "
+import json
+gv = json.load(open('$SCENE_DIR/gravity_validation.json'))
+print(gv.get('agreement', 'unknown'))
+" 2>/dev/null || echo "unknown")
+
+        if [ "$GRAVITY_MATCH" = "disagree" ]; then
+          write_status 5 "gravity_alignment" "warning" \
+            "Gimbal IMU and Manhattan alignment disagree on gravity direction. Manual review recommended."
+        fi
+      fi
+      ;;
+
+    manhattan)
+      # No SRT data — standard Manhattan world alignment (existing behavior)
+      echo "Using Manhattan world assumption for alignment..."
+      run_step 5 "gravity_alignment" \
+        colmap model_orientation_aligner \
+          --image_path "$FRAMES_DIR" \
+          --input_path "$BEST_MODEL" \
+          --output_path "$ALIGNED_DIR"
+      ;;
+  esac
+
+  # Record alignment strategy in metadata for frontend
+  if [ -f "$METADATA_FILE" ]; then
+    python3 -c "
+import json
+meta = json.load(open('$METADATA_FILE'))
+meta['alignment_strategy'] = '$ALIGNMENT_STRATEGY'
+meta['has_real_world_scale'] = ('$ALIGNMENT_STRATEGY' == 'geo_registration')
+json.dump(meta, open('$METADATA_FILE', 'w'), indent=2)
+" 2>/dev/null || true
+  fi
 fi
 
 # ─── Step 6: Validation ──────────────────────────────────────────

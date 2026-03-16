@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SceneListItem } from '../../api/client.ts';
 import { formatNumber } from '../../utils/format.ts';
+import { ConfirmDialog } from '../layout/ConfirmDialog.tsx';
 import './SceneCard.css';
 
 interface SceneCardProps {
@@ -11,7 +12,7 @@ interface SceneCardProps {
 
 export function SceneCard({ scene, onDelete }: SceneCardProps) {
   const navigate = useNavigate();
-  const [confirming, setConfirming] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const hasConfig = scene.config != null;
 
@@ -19,30 +20,13 @@ export function SceneCard({ scene, onDelete }: SceneCardProps) {
     <div className="scene-card">
       <div className="scene-card__header">
         <h3 className="scene-card__name">{scene.name}</h3>
-        {confirming ? (
-          <div className="scene-card__confirm-delete">
-            <button
-              className="scene-card__btn scene-card__btn--danger"
-              onClick={() => onDelete(scene.id)}
-            >
-              Confirm
-            </button>
-            <button
-              className="scene-card__btn"
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button
-            className="scene-card__btn scene-card__btn--ghost-danger"
-            onClick={() => setConfirming(true)}
-            title="Delete scene"
-          >
-            Delete
-          </button>
-        )}
+        <button
+          className="scene-card__btn scene-card__btn--ghost-danger"
+          onClick={() => setShowConfirm(true)}
+          title="Delete scene"
+        >
+          Delete
+        </button>
       </div>
       {hasConfig && (
         <div className="scene-card__meta">
@@ -80,6 +64,18 @@ export function SceneCard({ scene, onDelete }: SceneCardProps) {
           Re-upload
         </button>
       </div>
+
+      <ConfirmDialog
+        open={showConfirm}
+        title="Delete Scene"
+        message={`Delete scene '${scene.name}'? This will permanently remove all files including the SPZ output, training data, and raw video. This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          setShowConfirm(false);
+          onDelete(scene.id);
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

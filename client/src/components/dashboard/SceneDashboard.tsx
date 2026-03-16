@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useScenes } from '../../hooks/useScenes.ts';
+import { useScenes, refreshAllScenes } from '../../hooks/useScenes.ts';
 import { deleteScene } from '../../api/client.ts';
 import { SceneCard } from './SceneCard.tsx';
 import './SceneDashboard.css';
@@ -9,7 +9,7 @@ export function SceneDashboard() {
   const navigate = useNavigate();
 
   const handleDelete = (id: string) => {
-    void deleteScene(id).then(() => refresh());
+    void deleteScene(id).then(() => refreshAllScenes());
   };
 
   return (

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+client/dist/
 .env
 *.pyc
 __pycache__/
@@ -9,6 +10,8 @@ __pycache__/
 .pytest_cache/
 *.db
 *.sqlite
+*.pt
+*.ply
 raw/*.mp4
 raw/*.mov
 raw/*.avi
@@ -17,8 +20,10 @@ scenes/*/output/
 scenes/*/logs/
 scenes/*/sparse/
 scenes/*/aligned/
+scenes/*/gsplat_input/
 tools/gsplat/
 .vscode/
 .idea/
 *.swp
 *.swo
+.vite/

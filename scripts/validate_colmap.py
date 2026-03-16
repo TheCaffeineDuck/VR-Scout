@@ -302,6 +302,53 @@ def validate(
         "pass": pass_result,
     }
 
+    # ── Telemetry enrichment ─────────────────────────────────────
+    # If metadata.json and/or gravity_validation.json exist in the scene
+    # directory (sibling of sparse_path), include telemetry in the report.
+    scene_dir = sparse_path.parent
+    # If sparse_path is aligned/, scene_dir is the scene root.
+    # If it's sparse/0/, go up two levels.
+    if scene_dir.name in ("0", "1", "2"):
+        scene_dir = scene_dir.parent.parent
+
+    metadata_file = scene_dir / "metadata.json"
+    gravity_file = scene_dir / "gravity_validation.json"
+
+    telemetry: dict[str, Any] | None = None
+
+    if metadata_file.is_file():
+        try:
+            meta = json.loads(metadata_file.read_text())
+            telemetry = {
+                "alignment_strategy": meta.get("alignment_strategy", "manhattan"),
+                "camera_model": (meta.get("container") or {}).get("camera_model"),
+                "gps_coverage": 0.0,
+                "gravity_check_degrees": None,
+                "gravity_agreement": None,
+            }
+
+            frame_matching = meta.get("frame_matching")
+            if frame_matching and frame_matching.get("total_frames", 0) > 0:
+                telemetry["gps_coverage"] = round(
+                    frame_matching.get("matched_with_gps", 0)
+                    / frame_matching["total_frames"],
+                    4,
+                )
+
+            if gravity_file.is_file():
+                try:
+                    gv = json.loads(gravity_file.read_text())
+                    telemetry["gravity_check_degrees"] = gv.get("angle_between_degrees")
+                    telemetry["gravity_agreement"] = gv.get("agreement")
+                except (json.JSONDecodeError, OSError):
+                    pass
+
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    if telemetry is not None:
+        report["telemetry"] = telemetry
+
     return report, exit_code
 
 

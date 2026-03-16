@@ -6,12 +6,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
 from .routes import health, pipeline, scenes, upload
 from .security import validate_scene_id
 from .services.gpu_poller import start_gpu_poller, stop_gpu_poller
+from .services.status_watcher import read_status_file
 from .ws.manager import manager
 
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +54,10 @@ app.include_router(scenes.router)
 app.include_router(pipeline.router)
 app.include_router(upload.router)
 
+# Serve scene output files (SPZ, alignment, etc.) as static files
+settings.scenes_path.mkdir(parents=True, exist_ok=True)
+app.mount("/scenes", StaticFiles(directory=str(settings.scenes_path)), name="scenes")
+
 
 # WebSocket endpoint
 @app.websocket("/api/ws/{scene_id}")
@@ -59,6 +65,15 @@ async def websocket_endpoint(websocket: WebSocket, scene_id: str) -> None:
     """WebSocket endpoint for real-time pipeline updates."""
     validate_scene_id(scene_id)
     await manager.connect(scene_id, websocket)
+
+    # Send current status on connect so the UI has initial state
+    current_status = read_status_file(scene_id)
+    if current_status:
+        await websocket.send_json({
+            "type": "status",
+            "data": current_status.model_dump(mode="json"),
+        })
+
     try:
         while True:
             # Keep connection alive, listen for client messages

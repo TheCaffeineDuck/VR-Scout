@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useScenes } from '../../hooks/useScenes.ts';
+import { useScenes, refreshAllScenes } from '../../hooks/useScenes.ts';
 import { deleteScene } from '../../api/client.ts';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import './Sidebar.css';
 
 function statusClass(pipelineStatus: string | null): string {
@@ -20,15 +22,21 @@ function statusClass(pipelineStatus: string | null): string {
 }
 
 export function Sidebar() {
-  const { scenes, loading, refresh } = useScenes();
+  const { scenes, loading } = useScenes();
   const navigate = useNavigate();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const handleDelete = (e: React.MouseEvent, sceneId: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, sceneId: string, sceneName: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Delete scene "${sceneId}"?`)) return;
-    void deleteScene(sceneId).then(() => {
-      refresh();
+    setDeleteTarget({ id: sceneId, name: sceneName });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    void deleteScene(deleteTarget.id).then(() => {
+      setDeleteTarget(null);
+      refreshAllScenes();
       void navigate('/');
     });
   };
@@ -61,7 +69,7 @@ export function Sidebar() {
               </NavLink>
               <button
                 className="sidebar__delete-btn"
-                onClick={(e) => handleDelete(e, scene.id)}
+                onClick={(e) => handleDeleteClick(e, scene.id, scene.name)}
                 title="Delete scene"
               >
                 &times;
@@ -90,6 +98,19 @@ export function Sidebar() {
           Settings
         </NavLink>
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Scene"
+        message={
+          deleteTarget
+            ? `Delete scene '${deleteTarget.name}'? This will permanently remove all files including the SPZ output, training data, and raw video. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </aside>
   );
 }

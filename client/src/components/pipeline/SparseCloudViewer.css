@@ -1,0 +1,98 @@
+.sparse-cloud-viewer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sparse-cloud-viewer--loading,
+.sparse-cloud-viewer--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 400px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.sparse-cloud-viewer--error {
+  color: var(--status-failed);
+}
+
+.sparse-cloud-viewer__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: sparse-spin 0.8s linear infinite;
+}
+
+@keyframes sparse-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sparse-cloud-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sparse-cloud-viewer__toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sparse-cloud-viewer__toggle-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sparse-cloud-viewer__toggle-btn:hover {
+  background: var(--surface-hover);
+}
+
+.sparse-cloud-viewer__toggle-btn--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sparse-cloud-viewer__toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sparse-cloud-viewer__stats {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sparse-cloud-viewer__align-ok {
+  color: var(--status-completed);
+}
+
+.sparse-cloud-viewer__align-warn {
+  color: var(--status-warning);
+}
+
+.sparse-cloud-viewer__canvas {
+  height: 380px;
+  background: #1a1a2e;
+}
+
+.sparse-cloud-viewer__canvas canvas {
+  display: block;
+}

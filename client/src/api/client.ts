@@ -1,5 +1,5 @@
 import type { SceneConfig } from '../types/scene.ts';
-import type { PipelineConfig, StatusFile, ValidationReport } from '../types/pipeline.ts';
+import type { PipelineConfig, SceneMetadata, SrtUploadResponse, StatusFile, ValidationReport } from '../types/pipeline.ts';
 import type { TrainingMetric } from '../types/ws.ts';
 import { API_BASE, UPLOAD_CHUNK_SIZE } from '../utils/constants.ts';
 
@@ -73,8 +73,19 @@ export function createScene(body: SceneCreateRequest): Promise<SceneRow> {
   });
 }
 
-export function deleteScene(id: string): Promise<{ status: string }> {
-  return request<{ status: string }>(`/scenes/${encodeURIComponent(id)}`, {
+export function deleteScene(id: string): Promise<{ deleted: string }> {
+  return request<{ deleted: string }>(`/scenes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export interface DeleteVideoResponse {
+  deleted_video: boolean;
+  freed_mb: number;
+}
+
+export function deleteSceneVideo(id: string): Promise<DeleteVideoResponse> {
+  return request<DeleteVideoResponse>(`/scene/${encodeURIComponent(id)}/video`, {
     method: 'DELETE',
   });
 }
@@ -164,6 +175,48 @@ export async function uploadFileChunked(
   }
 }
 
+// --- SRT Upload ---
+
+export async function uploadSrt(
+  sceneId: string,
+  file: File,
+): Promise<SrtUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(
+    `${API_BASE}/upload/srt/${encodeURIComponent(sceneId)}`,
+    { method: 'POST', body: formData },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    let message = text;
+    try {
+      const json = JSON.parse(text) as { detail?: string };
+      if (typeof json.detail === 'string') message = json.detail;
+    } catch {
+      // Not JSON
+    }
+    throw new ApiError(res.status, message || `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<SrtUploadResponse>;
+}
+
+export function deleteSrt(sceneId: string): Promise<{ status: string }> {
+  return request<{ status: string }>(
+    `/upload/srt/${encodeURIComponent(sceneId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+// --- Scene Metadata ---
+
+export function getSceneMetadata(sceneId: string): Promise<SceneMetadata> {
+  return request<SceneMetadata>(
+    `/scene/${encodeURIComponent(sceneId)}/metadata`,
+  );
+}
+
 // --- Pipeline ---
 
 export interface PipelineActionResponse {
@@ -224,6 +277,48 @@ export function getValidationReport(sceneId: string): Promise<ValidationReport> 
 export function getTrainingMetrics(sceneId: string): Promise<TrainingMetric[]> {
   return request<TrainingMetric[]>(
     `/pipeline/metrics/${encodeURIComponent(sceneId)}`,
+  );
+}
+
+// --- Sparse Cloud ---
+
+export interface SparseCloudPoint {
+  x: number;
+  y: number;
+  z: number;
+  r: number;
+  g: number;
+  b: number;
+}
+
+export interface SparseCloudCamera {
+  image_name: string;
+  registered: boolean;
+  position: [number, number, number];
+  rotation_matrix: number[][];
+  reprojection_error: number;
+}
+
+export interface SparseCloudSummary {
+  total_points: number;
+  total_images: number;
+  registered_images: number;
+  mean_reprojection_error: number;
+}
+
+export interface SparseCloudData {
+  points: SparseCloudPoint[];
+  cameras: SparseCloudCamera[];
+  summary: SparseCloudSummary;
+}
+
+export function getSparseCloud(
+  sceneId: string,
+  source: 'sparse' | 'aligned' = 'sparse',
+): Promise<SparseCloudData> {
+  const params = source !== 'sparse' ? `?source=${source}` : '';
+  return request<SparseCloudData>(
+    `/scene/${encodeURIComponent(sceneId)}/sparse_cloud${params}`,
   );
 }
 

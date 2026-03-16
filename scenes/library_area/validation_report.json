@@ -1,0 +1,38 @@
+{
+  "registration_rate": 0.9601,
+  "registered_images": 457,
+  "total_images": 476,
+  "mean_reprojection_error_px": 1.1856,
+  "point_count": 118059,
+  "points_per_image": 258.3,
+  "camera_model": "OPENCV",
+  "alignment_applied": true,
+  "alignment_is_identity": true,
+  "unregistered_images": [
+    "frame_00001.jpg",
+    "frame_00002.jpg",
+    "frame_00003.jpg",
+    "frame_00004.jpg",
+    "frame_00005.jpg",
+    "frame_00006.jpg",
+    "frame_00007.jpg",
+    "frame_00008.jpg",
+    "frame_00009.jpg",
+    "frame_00010.jpg",
+    "frame_00011.jpg",
+    "frame_00012.jpg",
+    "frame_00056.jpg",
+    "frame_00141.jpg",
+    "frame_00157.jpg",
+    "frame_00158.jpg",
+    "frame_00344.jpg",
+    "frame_00379.jpg",
+    "frame_00411.jpg"
+  ],
+  "scene_scale_estimate_meters": 64.71,
+  "warnings": [
+    "Gravity alignment produced identity transform. Auto-alignment may have failed \u2014 manual alignment will be needed.",
+    "High mean reprojection error: 1.19px. Training quality may suffer."
+  ],
+  "pass": true
+}

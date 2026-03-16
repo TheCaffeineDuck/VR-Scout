@@ -39,6 +39,7 @@ export function UploadScreen() {
       <div className="upload-screen__panels">
         <UploadPanel
           sceneId={sceneId}
+          isExistingScene={id != null}
           onSceneIdResolved={(resolvedId) => setSceneId(resolvedId)}
           onUploadComplete={() => setUploadComplete(true)}
         />

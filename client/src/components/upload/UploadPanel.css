@@ -108,3 +108,137 @@
 .upload-panel__actions {
   margin-top: 16px;
 }
+
+.upload-panel__existing-video {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--surface-alt);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.upload-panel__existing-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-panel__info {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.btn--small {
+  padding: 4px 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ── SRT Sidecar Upload ────────────────────────────────────────── */
+
+.upload-panel__srt-section {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.upload-panel__srt-header {
+  margin-bottom: 8px;
+}
+
+.upload-panel__srt-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.upload-panel__srt-dropzone {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.upload-panel__srt-dropzone:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.upload-panel__srt-add {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.upload-panel__srt-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.upload-panel__srt-info {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+  border-radius: 6px;
+}
+
+.upload-panel__srt-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--surface-alt);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.upload-panel__srt-result-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.upload-panel__srt-check {
+  flex-shrink: 0;
+}
+
+.upload-panel__srt-filename {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-panel__srt-summary {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.upload-panel__srt-error {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: var(--status-failed-bg);
+  color: var(--status-failed);
+  border-radius: 6px;
+  font-size: 12px;
+}

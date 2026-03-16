@@ -1,4 +1,4 @@
-"""Chunked file upload endpoint with ffprobe validation."""
+"""Chunked file upload endpoint with ffprobe validation, plus SRT sidecar upload."""
 
 import asyncio
 import json
@@ -11,6 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from ..config import settings
 from ..db import get_scene
 from ..security import sanitize_path, upload_limiter, validate_scene_id
+from ..utils.metadata_extractor import parse_dji_srt
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -202,3 +203,110 @@ async def upload_chunk(
         "total_chunks": total_chunks,
         "received": received,
     }
+
+
+_SRT_MAX_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/api/upload/srt/{scene_id}")
+async def upload_srt(
+    scene_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+) -> dict[str, object]:
+    """Upload an optional DJI SRT sidecar file for a scene.
+
+    Validation:
+    - Scene must exist
+    - File extension must be .srt or .SRT
+    - File size must be < 10MB
+    - File must parse as valid SRT (numbered blocks with timecodes)
+
+    Stores to: scenes/{scene_id}/source.srt
+    Returns parse summary with entry count and data availability flags.
+    """
+    validate_scene_id(scene_id)
+
+    client_ip = request.client.host if request.client else "unknown"
+    upload_limiter.check_or_raise(client_ip)
+
+    scene = await get_scene(scene_id)
+    if scene is None:
+        raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
+
+    # Validate file extension
+    filename = file.filename or ""
+    if not filename.lower().endswith(".srt"):
+        raise HTTPException(
+            status_code=422,
+            detail="File must have .srt extension",
+        )
+
+    # Read and validate size
+    content = await file.read()
+    if len(content) > _SRT_MAX_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"SRT file exceeds maximum size of {_SRT_MAX_SIZE // (1024 * 1024)} MB",
+        )
+
+    if len(content) == 0:
+        raise HTTPException(status_code=422, detail="SRT file is empty")
+
+    # Save to scene directory
+    scene_dir = sanitize_path(settings.scenes_path, scene_id)
+    scene_dir.mkdir(parents=True, exist_ok=True)
+    srt_path = scene_dir / "source.srt"
+    srt_path.write_bytes(content)
+
+    # Parse to validate and return summary
+    try:
+        srt_data = parse_dji_srt(str(srt_path))
+    except Exception as exc:
+        # Remove invalid file
+        srt_path.unlink(missing_ok=True)
+        logger.warning("SRT parse failed for scene %s: %s", scene_id, exc)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Failed to parse SRT file: {exc}",
+        ) from exc
+
+    if srt_data["entry_count"] == 0:
+        srt_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=422,
+            detail="SRT file contains no valid subtitle entries",
+        )
+
+    return {
+        "status": "ok",
+        "entry_count": srt_data["entry_count"],
+        "has_gps": srt_data["has_gps"],
+        "has_gimbal": srt_data["has_gimbal"],
+        "has_altitude": srt_data.get("has_altitude", False),
+        "fps_estimate": srt_data.get("fps_estimate"),
+        "gimbal_range": srt_data.get("gimbal_range"),
+    }
+
+
+@router.delete("/api/upload/srt/{scene_id}")
+async def delete_srt(
+    scene_id: str,
+    request: Request,
+) -> dict[str, str]:
+    """Delete the SRT sidecar file for a scene."""
+    validate_scene_id(scene_id)
+
+    client_ip = request.client.host if request.client else "unknown"
+    upload_limiter.check_or_raise(client_ip)
+
+    scene = await get_scene(scene_id)
+    if scene is None:
+        raise HTTPException(status_code=404, detail=f"Scene '{scene_id}' not found")
+
+    srt_path = sanitize_path(settings.scenes_path, scene_id) / "source.srt"
+    if not srt_path.exists():
+        raise HTTPException(status_code=404, detail="No SRT file found for this scene")
+
+    srt_path.unlink()
+    return {"status": "deleted"}

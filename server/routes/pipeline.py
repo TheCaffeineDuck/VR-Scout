@@ -41,6 +41,14 @@ async def start_pipeline(
         if pipeline_service.is_running(scene_id):
             raise HTTPException(status_code=409, detail="Pipeline already running")
 
+        # Validate video file exists before launching subprocess
+        video_path = settings.raw_path / f"{scene_id}.mp4"
+        if not video_path.exists():
+            raise HTTPException(
+                status_code=400,
+                detail=f"No video file found for scene '{scene_id}'. Upload a video first.",
+            )
+
         run_id = await pipeline_service.start_pipeline(scene_id, config)
         return {"run_id": run_id, "status": "started"}
     except HTTPException:
