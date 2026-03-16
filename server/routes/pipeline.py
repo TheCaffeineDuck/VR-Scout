@@ -42,7 +42,7 @@ async def start_pipeline(
             raise HTTPException(status_code=409, detail="Pipeline already running")
 
         # Validate video file exists before launching subprocess
-        video_path = settings.raw_path / f"{scene_id}.mp4"
+        video_path = settings.scenes_path / scene_id / "raw" / f"{scene_id}.mp4"
         if not video_path.exists():
             raise HTTPException(
                 status_code=400,

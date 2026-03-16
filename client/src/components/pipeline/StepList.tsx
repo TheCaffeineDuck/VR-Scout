@@ -6,9 +6,10 @@ import './StepList.css';
 interface StepListProps {
   status: StatusFile | null;
   onViewLog: (step: number) => void;
+  onResume: (step: number) => void;
 }
 
-export function StepList({ status, onViewLog }: StepListProps) {
+export function StepList({ status, onViewLog, onResume }: StepListProps) {
   return (
     <div className="step-list">
       {PIPELINE_STEPS.map((step) => {
@@ -35,6 +36,11 @@ export function StepList({ status, onViewLog }: StepListProps) {
               stepStatus === 'failed' ? status?.message : undefined
             }
             onViewLog={() => onViewLog(step.number)}
+            onResume={
+              stepStatus === 'completed' || stepStatus === 'failed'
+                ? () => onResume(step.number)
+                : undefined
+            }
           />
         );
       })}

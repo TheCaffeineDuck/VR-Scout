@@ -122,10 +122,21 @@ export function PipelineMonitor() {
     }
   }, [sceneId]);
 
+  const handleResumeFrom = useCallback(async (step: number) => {
+    try {
+      setError(null);
+      await resumePipeline(sceneId, step, DEFAULT_PIPELINE_CONFIG);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to resume pipeline';
+      setError(msg);
+    }
+  }, [sceneId]);
+
   const isTraining = status?.current_step === 7 && status.status === 'running';
   const isAwaitingConfirmation = status?.status === 'awaiting_confirmation';
   // Pipeline is idle when there's no status at all (never run) or it finished/failed
   const isIdle = !status || status.status === 'completed' || status.status === 'failed';
+  const failedStep = status?.status === 'failed' ? status.current_step : null;
 
   // Sparse cloud viewer: available after step 4 (mapping), hidden once training starts (step 7+)
   const mappingDone = status != null && status.current_step > 4;
@@ -147,12 +158,22 @@ export function PipelineMonitor() {
           </div>
         </div>
         {isIdle && (
-          <button
-            className="btn btn--primary"
-            onClick={() => void handleStart()}
-          >
-            Start Processing
-          </button>
+          <div className="pipeline-monitor__header-actions">
+            <button
+              className="btn btn--primary"
+              onClick={() => void handleStart()}
+            >
+              Start Processing
+            </button>
+            {failedStep != null && (
+              <button
+                className="btn btn--ghost"
+                onClick={() => void handleResumeFrom(failedStep)}
+              >
+                Resume from Step {failedStep}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -188,6 +209,7 @@ export function PipelineMonitor() {
           <StepList
             status={status}
             onViewLog={(step) => setViewingLogStep(step)}
+            onResume={(step) => void handleResumeFrom(step)}
           />
         </div>
 

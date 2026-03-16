@@ -83,3 +83,9 @@
   margin-bottom: 8px;
   white-space: pre-wrap;
 }
+
+.step-item__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

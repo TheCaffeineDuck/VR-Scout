@@ -79,8 +79,8 @@ done
 
 # ─── Paths ────────────────────────────────────────────────────────
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RAW_VIDEO="$PROJECT_ROOT/raw/$SCENE_ID.mp4"
 SCENE_DIR="$PROJECT_ROOT/scenes/$SCENE_ID"
+RAW_VIDEO="$SCENE_DIR/raw/$SCENE_ID.mp4"
 FRAMES_DIR="$SCENE_DIR/frames"
 DB_PATH="$SCENE_DIR/db.db"
 SPARSE_DIR="$SCENE_DIR/sparse"
@@ -405,23 +405,37 @@ else:
 
       if [ $GEO_EXIT -eq 0 ] && [ -f "$GEO_REF_FILE" ]; then
         # Try model_aligner with geo-reference (provides scale + position + orientation)
-        run_step 5 "gravity_alignment" \
-          colmap model_aligner \
+        # NOTE: Do NOT use run_step here — run_step exits on failure, preventing
+        # the fallback to model_orientation_aligner from ever executing.
+        write_status 5 "gravity_alignment" "running"
+        GEO_ALIGN_LOG="$LOGS_DIR/step_5_gravity_alignment.log"
+        echo "=== Step 5: gravity_alignment (geo_registration) ===" | tee "$GEO_ALIGN_LOG"
+
+        colmap model_aligner \
+          --input_path "$BEST_MODEL" \
+          --output_path "$ALIGNED_DIR" \
+          --ref_images_path "$GEO_REF_FILE" \
+          --robust_alignment 1 \
+          --robust_alignment_max_error 3.0 \
+          >> "$GEO_ALIGN_LOG" 2>&1
+        GEO_ALIGN_EXIT=$?
+
+        if [ $GEO_ALIGN_EXIT -ne 0 ]; then
+          echo "WARNING: model_aligner failed (exit $GEO_ALIGN_EXIT), falling back to model_orientation_aligner" >> "$GEO_ALIGN_LOG"
+          ALIGNMENT_STRATEGY="manhattan"
+          colmap model_orientation_aligner \
+            --image_path "$FRAMES_DIR" \
             --input_path "$BEST_MODEL" \
             --output_path "$ALIGNED_DIR" \
-            --ref_images_path "$GEO_REF_FILE" \
-            --robust_alignment 1 \
-            --robust_alignment_max_error 3.0 \
-          || {
-            # Fallback to orientation aligner if model_aligner fails
-            echo "WARNING: model_aligner failed, falling back to model_orientation_aligner"
-            ALIGNMENT_STRATEGY="manhattan"
-            run_step 5 "gravity_alignment" \
-              colmap model_orientation_aligner \
-                --image_path "$FRAMES_DIR" \
-                --input_path "$BEST_MODEL" \
-                --output_path "$ALIGNED_DIR"
-          }
+            >> "$GEO_ALIGN_LOG" 2>&1
+          ORIENT_EXIT=$?
+          if [ $ORIENT_EXIT -ne 0 ]; then
+            write_status 5 "gravity_alignment" "failed" "Both model_aligner and model_orientation_aligner failed. See step_5 log."
+            exit $ORIENT_EXIT
+          fi
+        fi
+
+        write_status 5 "gravity_alignment" "completed"
       else
         echo "WARNING: Geo-reference file generation failed, falling back to orientation aligner"
         ALIGNMENT_STRATEGY="manhattan"

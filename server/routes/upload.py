@@ -148,8 +148,8 @@ async def upload_chunk(
     _upload_totals[scene_id] = current_total
 
     # Ensure directories exist
-    # Save to project-root raw/ directory (where process.sh expects it)
-    raw_dir = settings.raw_path
+    # Save to scenes/{scene_id}/raw/ (keeps all scene data co-located)
+    raw_dir = sanitize_path(settings.scenes_path, scene_id) / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     chunks_dir = sanitize_path(settings.scenes_path, scene_id) / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)

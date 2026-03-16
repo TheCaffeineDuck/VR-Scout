@@ -134,6 +134,12 @@
   font-size: 14px;
 }
 
+.pipeline-monitor__header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .pipeline-monitor__footer {
   margin-top: 24px;
   display: flex;

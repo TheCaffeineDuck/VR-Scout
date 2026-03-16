@@ -11,6 +11,7 @@ interface StepItemProps {
   summary?: string;
   errorMessage?: string;
   onViewLog?: () => void;
+  onResume?: () => void;
 }
 
 function statusIconFor(status: PipelineStatus | 'pending'): string {
@@ -42,6 +43,7 @@ export function StepItem({
   summary,
   errorMessage,
   onViewLog,
+  onResume,
 }: StepItemProps) {
   const [expanded, setExpanded] = useState(status === 'failed');
 
@@ -62,22 +64,46 @@ export function StepItem({
         <span className="step-item__summary">{summary ?? ''}</span>
       </div>
 
-      {expanded && (status === 'failed' || status === 'completed') && (
+      {expanded && (status === 'failed' || status === 'completed' || status === 'warning') && (
         <div className="step-item__details">
           {errorMessage && (
             <div className="step-item__error">{errorMessage}</div>
           )}
-          {onViewLog && (
-            <button
-              className="btn btn--small btn--ghost"
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewLog();
-              }}
-            >
-              View Log
-            </button>
-          )}
+          <div className="step-item__actions">
+            {onViewLog && (
+              <button
+                className="btn btn--small btn--ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewLog();
+                }}
+              >
+                View Log
+              </button>
+            )}
+            {onResume && status === 'failed' && (
+              <button
+                className="btn btn--small btn--primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onResume();
+                }}
+              >
+                Retry Step
+              </button>
+            )}
+            {onResume && status === 'completed' && (
+              <button
+                className="btn btn--small btn--ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onResume();
+                }}
+              >
+                Resume from Here
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
