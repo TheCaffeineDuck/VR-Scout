@@ -32,6 +32,7 @@ client/dist/
 *.spz
 
 # Project-specific: machine-generated, not committed
+ENVIRONMENT.md
 config/hardware_profile.json
 scenes/*/frames/
 scenes/*/output/
@@ -42,7 +43,12 @@ scenes/*/sparse/
 scenes/*/aligned/
 scenes/*/gsplat_input/
 scenes/*/metadata/
+scenes/*/raw/
+scenes/*/chunks/
+scenes/*/supplementary/
+scenes/*/panoramas/
 raw/*.mp4
 raw/*.mov
 raw/*.avi
+server/db/
 tools/gsplat/

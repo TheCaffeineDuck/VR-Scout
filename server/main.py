@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from server.config import settings
 from server.database import init_db
+from server.pipeline.orchestrator import PipelineOrchestrator
 from server.routes import pipeline, scenes, upload
 from server.routes import settings as settings_routes
 from server.ws.handler import ConnectionManager
@@ -21,6 +22,8 @@ manager = ConnectionManager()
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Run startup and shutdown logic for the application."""
     await init_db()
+    # Wire orchestrator with WebSocket manager
+    app.state.orchestrator = PipelineOrchestrator(ws_manager=manager)
     yield
 
 
