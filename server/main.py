@@ -1,45 +1,35 @@
-"""FastAPI application entry point."""
+"""FastAPI application entry point for VR Scout v4."""
 
-import logging
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
-from .config import settings
-from .db import init_db
-from .routes import health, pipeline, scenes, upload
-from .security import validate_scene_id
-from .services.gpu_poller import start_gpu_poller, stop_gpu_poller
-from .services.status_watcher import read_status_file
-from .ws.manager import manager
+from server.config import settings
+from server.database import init_db
+from server.routes import pipeline, scenes, upload
+from server.routes import settings as settings_routes
+from server.ws.handler import ConnectionManager
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+manager = ConnectionManager()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan: initialize DB on startup."""
-    logger.info("Initializing database at %s", settings.db_path)
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Run startup and shutdown logic for the application."""
     await init_db()
-    logger.info("Database initialized")
-    start_gpu_poller()
-    logger.info("GPU poller started")
     yield
-    stop_gpu_poller()
-    logger.info("Shutting down")
 
 
 app = FastAPI(
-    title="VR Scout v3",
+    title="VR Scout v4",
     version=settings.app_version,
     lifespan=lifespan,
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -48,40 +38,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
-app.include_router(health.router)
-app.include_router(scenes.router)
-app.include_router(pipeline.router)
 app.include_router(upload.router)
+app.include_router(pipeline.router)
+app.include_router(scenes.router)
+app.include_router(settings_routes.router)
 
-# Serve scene output files (SPZ, alignment, etc.) as static files
-settings.scenes_path.mkdir(parents=True, exist_ok=True)
-app.mount("/scenes", StaticFiles(directory=str(settings.scenes_path)), name="scenes")
 
-
-# WebSocket endpoint
 @app.websocket("/api/ws/{scene_id}")
 async def websocket_endpoint(websocket: WebSocket, scene_id: str) -> None:
-    """WebSocket endpoint for real-time pipeline updates."""
-    validate_scene_id(scene_id)
+    """Handle a WebSocket connection for real-time scene updates."""
     await manager.connect(scene_id, websocket)
-
-    # Send current status on connect so the UI has initial state
-    current_status = read_status_file(scene_id)
-    if current_status:
-        await websocket.send_json({
-            "type": "status",
-            "data": current_status.model_dump(mode="json"),
-        })
-
     try:
         while True:
-            # Keep connection alive, listen for client messages
-            data = await websocket.receive_text()
-            # Client messages are currently ignored (server-push only)
-            logger.debug("WS message from client for scene %s: %s", scene_id, data)
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(scene_id, websocket)
-    except Exception:
-        logger.exception("Unexpected WebSocket error for scene %s", scene_id)
         manager.disconnect(scene_id, websocket)

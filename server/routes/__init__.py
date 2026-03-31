@@ -1,1 +1,1 @@
-"""Route handlers for the VR Scout v3 API."""
+"""API route definitions for VR Scout v4."""

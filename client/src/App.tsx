@@ -1,36 +1,23 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Sidebar } from './components/layout/Sidebar.tsx';
-import { MainContent } from './components/layout/MainContent.tsx';
-import { SceneDashboard } from './components/dashboard/SceneDashboard.tsx';
-import { UploadScreen } from './components/upload/UploadScreen.tsx';
-import { PipelineMonitor } from './components/pipeline/PipelineMonitor.tsx';
-import { QAReview } from './components/qa/QAReview.tsx';
-import { SettingsScreen } from './components/settings/SettingsScreen.tsx';
+import { MainLayout } from './components/layout/MainLayout';
+import { SceneDashboard } from './components/dashboard/SceneDashboard';
+import { UploadScreen } from './components/upload/UploadScreen';
+import { PipelineMonitor } from './components/pipeline/PipelineMonitor';
+import { QAReviewScreen } from './components/qa/QAReviewScreen';
+import { SettingsScreen } from './components/settings/SettingsScreen';
 
-function AppLayout() {
-  return (
-    <div className="app-layout">
-      <Sidebar />
-      <MainContent />
-    </div>
-  );
-}
-
-function App() {
+export function App(): React.JSX.Element {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
+      <MainLayout>
+        <Routes>
           <Route path="/" element={<SceneDashboard />} />
           <Route path="/upload" element={<UploadScreen />} />
-          <Route path="/scene/:id/upload" element={<UploadScreen />} />
-          <Route path="/scene/:id/pipeline" element={<PipelineMonitor />} />
-          <Route path="/scene/:id/review" element={<QAReview />} />
+          <Route path="/pipeline/:sceneId" element={<PipelineMonitor />} />
+          <Route path="/review/:sceneId" element={<QAReviewScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
-        </Route>
-      </Routes>
+        </Routes>
+      </MainLayout>
     </BrowserRouter>
   );
 }
-
-export default App;

@@ -1,21 +1,46 @@
+export interface GaussianCount {
+  desktop: number;
+  quest: number;
+}
+
 export interface SceneConfig {
   id: string;
   name: string;
-  spzUrl: string;
+  desktopSpzUrl: string;
+  questSpzUrl: string;
   alignmentUrl: string;
-  gaussianCount: number;
+  collisionMeshUrl?: string;
+  environmentMapUrl?: string;
+  flythroughVideoUrl?: string;
+  gaussianCount: GaussianCount;
   shDegree: 0 | 1 | 2 | 3;
   coordinateSystem: 'rub';
   maxStdDev?: number;
-  lodEnabled?: boolean;
-  mobileBudget?: number;
+  scaleMetric?: boolean;
+  scaleMetersPerUnit?: number;
 }
 
-export interface ViewerProps {
-  sceneConfig: SceneConfig;
-  enableVR?: boolean;
-  enableControls?: boolean;
-  onLoad?: () => void;
-  onError?: (error: Error) => void;
-  onProgress?: (loaded: number, total: number) => void;
+export interface SceneStatus {
+  sceneId: string;
+  status: string;
+  currentStep?: number;
+  currentStepName?: string;
+  message?: string;
+}
+
+export interface SceneRun {
+  id: string;
+  sceneId: string;
+  configJson: string;
+  startedAt?: string;
+  completedAt?: string;
+  status: string;
+}
+
+export interface SceneListItem {
+  id: string;
+  name: string;
+  status: string;
+  gaussianCount?: GaussianCount;
+  createdAt: string;
 }

@@ -1,21 +1,15 @@
-import { useWebSocket } from '../api/ws.ts';
-import type { StatusFile } from '../types/pipeline.ts';
+import { useState } from 'react';
+import type { StepStatus } from '../types/pipeline';
 
-export interface UsePipelineStatusResult {
-  status: StatusFile | null;
-  logLines: string[];
-  warnings: string[];
-  gpuStats: { memory_used_mb: number; memory_total_mb: number; utilization_pct: number } | null;
-  connected: boolean;
+interface UsePipelineStatusResult {
+  steps: StepStatus[];
+  currentStep: number | null;
 }
 
-export function usePipelineStatus(sceneId: string | undefined): UsePipelineStatusResult {
-  const ws = useWebSocket(sceneId);
-  return {
-    status: ws.status,
-    logLines: ws.logLines,
-    warnings: ws.warnings,
-    gpuStats: ws.gpuStats,
-    connected: ws.connected,
-  };
+export function usePipelineStatus(_sceneId: string): UsePipelineStatusResult {
+  // TODO: Implement pipeline status polling via WebSocket
+  const [steps] = useState<StepStatus[]>([]);
+  const [currentStep] = useState<number | null>(null);
+
+  return { steps, currentStep };
 }

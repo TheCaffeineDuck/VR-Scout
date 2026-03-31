@@ -1,17 +1,9 @@
-import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [react()],
-  build: {
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        standalone: resolve(__dirname, 'src/viewer/standalone.html'),
-      },
-    },
-  },
+  plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
     proxy: {

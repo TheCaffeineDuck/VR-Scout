@@ -1,18 +1,13 @@
-import { useWebSocket } from '../api/ws.ts';
-import type { TrainingMetric } from '../types/ws.ts';
+import { useState } from 'react';
+import type { TrainingMetric } from '../types/pipeline';
 
-export interface UseTrainingMetricsResult {
+interface UseTrainingMetricsResult {
   metrics: TrainingMetric[];
-  latest: TrainingMetric | null;
-  connected: boolean;
 }
 
-export function useTrainingMetrics(sceneId: string | undefined): UseTrainingMetricsResult {
-  const ws = useWebSocket(sceneId);
-  const latest = ws.metrics.length > 0 ? ws.metrics[ws.metrics.length - 1] : null;
-  return {
-    metrics: ws.metrics,
-    latest,
-    connected: ws.connected,
-  };
+export function useTrainingMetrics(_sceneId: string): UseTrainingMetricsResult {
+  // TODO: Implement training metrics collection via WebSocket
+  const [metrics] = useState<TrainingMetric[]>([]);
+
+  return { metrics };
 }
