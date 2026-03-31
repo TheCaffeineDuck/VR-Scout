@@ -4,10 +4,9 @@ interface CollisionMeshProps {
 
 /** Loads and renders collision mesh overlay */
 export function CollisionMesh({ url }: CollisionMeshProps): React.JSX.Element {
-  // TODO: Implement collision mesh loading and wireframe rendering
   return (
-    <div className="collision-mesh">
-      <p>TODO: Collision mesh from {url}</p>
+    <div className="text-gray-500 text-sm p-2">
+      <p>Collision mesh: {url} (pending integration)</p>
     </div>
   );
 }

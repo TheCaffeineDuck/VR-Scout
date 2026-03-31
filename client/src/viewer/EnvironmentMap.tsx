@@ -6,10 +6,9 @@ interface EnvironmentMapProps {
 export function EnvironmentMap({
   url,
 }: EnvironmentMapProps): React.JSX.Element {
-  // TODO: Implement HDR environment map loading and application
   return (
-    <div className="environment-map">
-      <p>TODO: Environment map from {url}</p>
+    <div className="text-gray-500 text-sm p-2">
+      <p>Environment map: {url} (pending integration)</p>
     </div>
   );
 }

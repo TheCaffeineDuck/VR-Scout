@@ -1,9 +1,17 @@
-import type { PipelineConfig, StepStatus } from '../types/pipeline';
+import type { PipelineConfig, StepStatus, TrainingMetric, ValidationReport } from '../types/pipeline';
+import type { SceneStatus } from '../types/scene';
+import { apiFetch, apiPost } from './client';
 
 export interface PipelineStatusResponse {
   sceneId: string;
   steps: StepStatus[];
   currentStep: number | null;
+}
+
+export interface PipelineLogResponse {
+  lines: string[];
+  totalLines: number;
+  offset: number;
 }
 
 export interface PipelineLogEntry {
@@ -13,34 +21,54 @@ export interface PipelineLogEntry {
 }
 
 export async function startPipeline(
-  _sceneId: string,
-  _config: PipelineConfig,
+  sceneId: string,
+  config: PipelineConfig,
 ): Promise<void> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+  await apiPost<unknown>(`/pipeline/start/${sceneId}`, config);
 }
 
-export async function cancelPipeline(_sceneId: string): Promise<void> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+export async function cancelPipeline(sceneId: string): Promise<void> {
+  await apiPost<unknown>(`/pipeline/cancel/${sceneId}`);
 }
 
-export async function resumePipeline(_sceneId: string): Promise<void> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+export async function resumePipeline(sceneId: string, step?: number): Promise<void> {
+  const path = step !== undefined
+    ? `/pipeline/resume/${sceneId}/${String(step)}`
+    : `/pipeline/resume/${sceneId}/0`;
+  await apiPost<unknown>(path);
+}
+
+export async function confirmPipeline(sceneId: string): Promise<void> {
+  await apiPost<unknown>(`/pipeline/confirm/${sceneId}`);
 }
 
 export async function getPipelineStatus(
-  _sceneId: string,
-): Promise<PipelineStatusResponse> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+  sceneId: string,
+): Promise<SceneStatus> {
+  return apiFetch<SceneStatus>(`/pipeline/status/${sceneId}`);
+}
+
+export async function getAllStepStatuses(
+  sceneId: string,
+): Promise<StepStatus[]> {
+  return apiFetch<StepStatus[]>(`/pipeline/steps/${sceneId}`);
 }
 
 export async function getPipelineLogs(
-  _sceneId: string,
-  _stepNum: number,
-): Promise<PipelineLogEntry[]> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+  sceneId: string,
+  stepNum: number,
+  lines = 200,
+  offset = 0,
+): Promise<PipelineLogResponse> {
+  return apiFetch<PipelineLogResponse>(
+    `/pipeline/logs/${sceneId}/${String(stepNum)}?lines=${String(lines)}&offset=${String(offset)}`,
+  );
+}
+
+export async function getValidation(sceneId: string): Promise<ValidationReport> {
+  return apiFetch<ValidationReport>(`/pipeline/validation/${sceneId}`);
+}
+
+export async function getMetrics(sceneId: string): Promise<TrainingMetric[]> {
+  return apiFetch<TrainingMetric[]>(`/pipeline/metrics/${sceneId}`);
 }

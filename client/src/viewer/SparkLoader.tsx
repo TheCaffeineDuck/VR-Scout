@@ -8,10 +8,9 @@ export function SparkLoader({
   url,
   onProgress: _onProgress,
 }: SparkLoaderProps): React.JSX.Element {
-  // TODO: Implement Spark SPZ loading with progress tracking
   return (
-    <div className="spark-loader">
-      <p>TODO: Loading splat from {url}</p>
+    <div className="flex items-center justify-center p-4 text-gray-500 text-sm">
+      <p>Spark SPZ loader: {url} (pending integration)</p>
     </div>
   );
 }

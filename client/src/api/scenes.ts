@@ -1,5 +1,6 @@
 import type { SceneListItem, SceneConfig } from '../types/scene';
 import type { AlignmentData } from '../types/viewer';
+import { apiFetch, apiPost, apiPut } from './client';
 
 export interface CropBounds {
   minX: number;
@@ -14,36 +15,35 @@ export interface ScaleParams {
   metersPerUnit: number;
 }
 
-export async function listScenes(): Promise<SceneListItem[]> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+export async function createScene(name: string): Promise<{ status: string; sceneId: string }> {
+  return apiPost<{ status: string; sceneId: string }>('/scenes', { name });
 }
 
-export async function getSceneConfig(_sceneId: string): Promise<SceneConfig> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+export async function listScenes(): Promise<SceneListItem[]> {
+  return apiFetch<SceneListItem[]>('/scenes');
+}
+
+export async function getSceneConfig(sceneId: string): Promise<SceneConfig> {
+  return apiFetch<SceneConfig>(`/scene/${sceneId}/config`);
 }
 
 export async function updateAlignment(
-  _sceneId: string,
-  _alignment: AlignmentData,
+  sceneId: string,
+  alignment: AlignmentData,
 ): Promise<void> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+  await apiPut<unknown>(`/scene/${sceneId}/alignment`, alignment);
 }
 
 export async function updateCrop(
-  _sceneId: string,
-  _bounds: CropBounds,
+  sceneId: string,
+  bounds: CropBounds,
 ): Promise<void> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+  await apiPut<unknown>(`/scene/${sceneId}/crop`, bounds);
 }
 
 export async function updateScale(
-  _sceneId: string,
-  _scale: ScaleParams,
+  sceneId: string,
+  scale: ScaleParams,
 ): Promise<void> {
-  // TODO: not implemented
-  throw new Error('TODO: not implemented');
+  await apiPut<unknown>(`/scene/${sceneId}/scale`, scale);
 }

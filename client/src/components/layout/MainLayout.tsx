@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -7,11 +8,14 @@ interface MainLayoutProps {
 
 /** Main application layout with sidebar and content area */
 export function MainLayout({ children }: MainLayoutProps): React.JSX.Element {
-  // TODO: Implement responsive layout with sidebar toggle
   return (
-    <div className="main-layout">
+    <div className="flex h-screen bg-gray-950 text-white">
       <Sidebar />
-      <main className="main-content">{children}</main>
+      <main className="flex-1 overflow-y-auto">
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+      </main>
     </div>
   );
 }

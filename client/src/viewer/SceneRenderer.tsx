@@ -9,10 +9,12 @@ export function SceneRenderer({
   onError: _onError,
   onProgress: _onProgress,
 }: ViewerProps): React.JSX.Element {
-  // TODO: Implement R3F Canvas with Spark gaussian splat rendering
   return (
-    <div className="scene-renderer">
-      <p>TODO: Scene renderer for {sceneConfig.name}</p>
+    <div className="w-full h-full min-h-[400px] bg-gray-900 rounded-lg border border-gray-700 flex items-center justify-center">
+      <div className="text-center text-gray-500">
+        <p className="text-sm">Scene Renderer: {sceneConfig.name}</p>
+        <p className="text-xs mt-1">R3F Canvas + Spark splat renderer (pending integration)</p>
+      </div>
     </div>
   );
 }

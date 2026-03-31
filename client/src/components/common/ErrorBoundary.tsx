@@ -26,7 +26,6 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // TODO: Implement error reporting/logging
     console.error('ErrorBoundary caught:', error, errorInfo);
   }
 
@@ -36,9 +35,15 @@ export class ErrorBoundary extends Component<
         return this.props.fallback;
       }
       return (
-        <div className="error-boundary">
-          <h2>Something went wrong</h2>
-          <p>{this.state.error?.message}</p>
+        <div className="flex flex-col items-center justify-center min-h-[200px] p-8 bg-gray-900 rounded-lg border border-red-800">
+          <h2 className="text-xl font-semibold text-red-400 mb-2">Something went wrong</h2>
+          <p className="text-gray-400 text-sm">{this.state.error?.message}</p>
+          <button
+            className="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            Try Again
+          </button>
         </div>
       );
     }
