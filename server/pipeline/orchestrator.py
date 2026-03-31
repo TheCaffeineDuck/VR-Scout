@@ -47,7 +47,7 @@ _STEP_REGISTRY: list[tuple[int, str, str, Callable[[PipelineConfig], bool]]] = [
     (5, "server.pipeline.steps.step_05_mapping", "MappingStep", _always),
     (
         55, "server.pipeline.steps.step_05_5_panorama_registration",
-        "PanoramaRegistrationStep", _never,
+        "PanoramaRegistrationStep", _always,
     ),
     (6, "server.pipeline.steps.step_06_alignment", "AlignmentStep", _always),
     (7, "server.pipeline.steps.step_07_validation", "ValidationStep", _always),
